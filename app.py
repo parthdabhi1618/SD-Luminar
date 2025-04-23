@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, send_file, jsonify
+from flask import Flask, render_template, request, jsonify
+from flask_wtf.csrf import CSRFProtect
 import fitz
 import os
 import tempfile
@@ -11,6 +12,10 @@ from reportlab.lib.units import inch
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
+app.config['SECRET_KEY'] = 'luminar-secret-key-2025'  # Replace with a secure key in production
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+csrf = CSRFProtect(app)
 
 def extract_highlights(pdf_path):
     """Extract and format highlights into concise, summary-oriented notes"""
@@ -169,7 +174,7 @@ def upload_file():
     
     return jsonify({'error': 'Invalid file type'}), 400
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
 
 # Required for Render
