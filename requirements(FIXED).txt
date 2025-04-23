@@ -1,0 +1,18 @@
+numpy==1.26.4
+h5py==3.10.0
+spacy==3.7.2
+flask==3.0.3
+flask-caching==2.3.0
+flask-limiter==3.12
+flask-wtf==1.2.1
+PyMuPDF==1.24.10
+reportlab==4.2.2
+bleach==6.1.0
+
+#!/bin/bash
+
+# Update package list
+pip install --upgrade pip
+
+# Install required packages
+pip install flask fitz pymupdf reportlab werkzeug
