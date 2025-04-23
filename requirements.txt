@@ -8,11 +8,3 @@ flask-wtf==1.2.1
 PyMuPDF==1.24.10
 reportlab==4.2.2
 bleach==6.1.0
-
-#!/bin/bash
-
-# Update package list
-pip install --upgrade pip
-
-# Install required packages
-pip install flask fitz pymupdf reportlab werkzeug
