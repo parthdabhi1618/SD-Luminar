@@ -7,4 +7,5 @@ matplotlib
 yt-dlp
 requests
 werkzeug
+pygments
 gunicorn
