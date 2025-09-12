@@ -7,3 +7,4 @@ matplotlib
 yt-dlp
 requests
 werkzeug
+gunicorn
