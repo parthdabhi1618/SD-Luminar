@@ -736,7 +736,7 @@ def add_header_footer_route():
     except Exception as e:
         return jsonify({'error': f'Failed to process PDF: {str(e)}'}), 500
 
-port = int(os.environ.get("PORT", 5000))
+port = int(os.environ.get("PORT", 8000))
 app.run(host="0.0.0.0", port=port)
 
 application = app
