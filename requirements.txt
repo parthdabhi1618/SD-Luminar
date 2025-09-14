@@ -9,3 +9,6 @@ pytube
 google-api-python-client
 yt-dlp
 gunicorn
+playwright
+selenium
+pyppeteer
