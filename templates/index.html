@@ -1,0 +1,2516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hephaestus (Public Beta) - Digital Tools for Students</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.21.4/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-countup@6.4.2/build/index.min.js"></script>
+    <script src="{{ url_for('static', filename='js/animations.js') }}"></script>
+    <!-- These files contain JSX; ensure Babel transpiles them in-browser -->
+    <script type="text/babel" src="{{ url_for('static', filename='js/YouTubePreview.js') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/VideoDownloader.js') }}"></script>
+    <link href="{{ url_for('static', filename='css/transitions.css') }}" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F8FAFC;
+            --text-primary: #1E293B;
+            --text-secondary: #64748B;
+            --accent-blue: #3B82F6;
+            --accent-indigo: #6366F1;
+            --accent-purple: #8B5CF6;
+            --accent-green: #10B981;
+            --glow-blue: 0 0 15px rgba(59, 130, 246, 0.3);
+            --glow-indigo: 0 0 15px rgba(99, 102, 241, 0.3);
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(0, 0, 0, 0.1);
+            --shadow-light: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #0B0F1A;
+                --bg-secondary: #0f172a;
+                --text-primary: #E2E8F0;
+                --text-secondary: #94A3B8;
+                --accent-blue: #60A5FA;
+                --accent-indigo: #818CF8;
+                --accent-purple: #A78BFA;
+                --accent-green: #22C55E;
+                --glow-blue: 0 0 20px rgba(96, 165, 250, 0.35);
+                --glow-indigo: 0 0 20px rgba(129, 140, 248, 0.35);
+                --glass-bg: rgba(15, 23, 42, 0.72);
+                --glass-border: rgba(255, 255, 255, 0.08);
+                --shadow-light: 0 8px 30px rgba(0, 0, 0, 0.35);
+            }
+            #matrix-canvas { opacity: 0.25; }
+            .input-modern { background: rgba(30, 41, 59, 0.7); border-color: rgba(148, 163, 184, 0.25); color: var(--text-primary); }
+            .input-modern::placeholder { color: rgba(148,163,184,0.7); }
+            select.input-modern { background: rgba(30, 41, 59, 0.7); }
+        }
+
+        .app-bg {
+            background: linear-gradient(135deg, #eff6ff 0%, #ffffff 50%, #eef2ff 100%);
+        }
+        @media (prefers-color-scheme: dark) {
+            .app-bg {
+                background: linear-gradient(135deg, #0b0f1a 0%, #0f172a 50%, #111827 100%);
+            }
+        }
+        .feature-bg { background: var(--theme-bg); }
+
+        .font-plex { font-family: 'IBM Plex Mono', monospace; }
+        .font-fira { font-family: 'Fira Code', monospace; }
+
+        .btn-matrix {
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+        }
+
+        .btn-matrix:hover {
+            transform: scale(1.05);
+            box-shadow: var(--glow-cyan);
+        }
+
+        .btn-matrix.active {
+            border-color: var(--accent-green);
+            box-shadow: var(--glow-green);
+            color: var(--accent-green);
+        }
+
+        .input-matrix {
+            background-color: rgba(26, 26, 26, 0.5);
+            border: 1px solid var(--accent-cyan);
+            transition: all 0.3s ease;
+        }
+
+        .input-matrix:focus {
+            outline: none;
+            border-color: var(--accent-green);
+            box-shadow: var(--glow-green);
+        }
+
+        .btn-action {
+            background-color: var(--accent-green);
+            color: var(--bg-primary);
+            transform: scale(1.05);
+            transition: transform 0.2s ease;
+        }
+
+        .btn-action:hover:not(:disabled) {
+            transform: scale(1);
+        }
+
+        .preview-box {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease-out;
+        }
+
+        .preview-box.expanded {
+            max-height: 75vh;
+        }
+
+        .placement-grid-btn {
+            border: 1px solid var(--accent-cyan);
+            background-color: rgba(0, 212, 255, 0.1);
+            transition: all 0.2s ease-in-out;
+        }
+
+        .placement-grid-btn:hover {
+            border-color: var(--accent-green);
+            background-color: rgba(0, 255, 65, 0.2);
+        }
+
+        .placement-grid-btn.active {
+            border-color: var(--accent-green);
+            background-color: var(--accent-green);
+            color: var(--bg-primary);
+            box-shadow: var(--glow-green);
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        #matrix-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.3;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
+
+        .feature-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            color: var(--text-primary);
+        }
+
+        .card-title { color: var(--text-primary); }
+        .card-subtitle { color: var(--text-secondary); }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #357abd 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(74, 144, 226, 0.4);
+        }
+
+        .input-modern {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+
+        .input-modern:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+            background: rgba(255, 255, 255, 0.95);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .input-modern {
+                background: rgba(30, 41, 59, 0.8);
+                border-color: rgba(148, 163, 184, 0.3);
+                color: var(--text-primary);
+            }
+
+            .input-modern:focus {
+                background: rgba(30, 41, 59, 0.9);
+                border-color: var(--accent-blue);
+            }
+
+            .input-modern::placeholder {
+                color: rgba(148, 163, 184, 0.7);
+            }
+        }
+
+        .theme-pdf { --theme-primary: #ff6b35; --theme-secondary: #f7931e; --theme-bg: linear-gradient(135deg, #fff8f5 0%, #fff5f0 100%); }
+        .theme-header { --theme-primary: #4a90e2; --theme-secondary: #357abd; --theme-bg: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%); }
+        .theme-social { --theme-primary: #000000; --theme-secondary: #1da1f2; --theme-bg: linear-gradient(135deg, #0b0f1a 0%, #0f172a 100%); }
+        .theme-price { --theme-primary: #50e3c2; --theme-secondary: #2dd4bf; --theme-bg: linear-gradient(135deg, #f0fdfa 0%, #ecfdf5 100%); }
+        @media (prefers-color-scheme: dark) {
+            .theme-pdf { --theme-bg: linear-gradient(135deg, #1f2937 0%, #111827 100%); }
+            .theme-header { --theme-bg: linear-gradient(135deg, #0b1020 0%, #0f172a 100%); }
+            .theme-price { --theme-bg: linear-gradient(135deg, #052e2b 0%, #06231f 100%); }
+        }
+
+        .feature-active .glass-card {
+            background: var(--glass-bg);
+            border-color: var(--theme-primary);
+            box-shadow: 0 0 24px rgba(59, 130, 246, 0.16);
+        }
+
+        .loading-dots {
+            display: inline-block;
+        }
+
+        .loading-dots::after {
+            content: '';
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .bounce-in {
+            animation: bounceIn 0.8s ease-out;
+        }
+
+        @keyframes bounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, var(--theme-primary), var(--theme-secondary));
+            height: 6px;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+            box-shadow: 0 0 10px var(--theme-primary);
+        }
+
+        .progress-container {
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            z-index: 1;
+        }
+
+        /* Feature entrance animations */
+        .feature-enter {
+            animation: featureEnter 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes featureEnter {
+            0% {
+                opacity: 0;
+                transform: scale(0.8) translateY(50px);
+                filter: blur(10px);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(1.05) translateY(-10px);
+                filter: blur(2px);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+                filter: blur(0);
+            }
+        }
+
+        .feature-header-enter {
+            animation: featureHeaderEnter 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes featureHeaderEnter {
+            0% {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.9);
+            }
+            60% {
+                opacity: 0.8;
+                transform: translateY(5px) scale(1.02);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .feature-content-enter {
+            animation: featureContentEnter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+        }
+
+        @keyframes featureContentEnter {
+            0% {
+                opacity: 0;
+                transform: translateX(-30px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        /* Enhanced glass effects */
+        .glass-card-enhanced {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.1),
+                0 0 0 1px rgba(255, 255, 255, 0.05),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .glass-card-enhanced:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                0 0 30px var(--theme-primary);
+        }
+
+        /* Shiny button effects */
+        .btn-shiny {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #357abd 100%);
+            color: white;
+            border-radius: 16px;
+            padding: 14px 28px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow:
+                0 4px 15px rgba(74, 144, 226, 0.3),
+                0 0 0 1px rgba(255, 255, 255, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-shiny::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-shiny:hover::before {
+            left: 100%;
+        }
+
+        .btn-shiny:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow:
+                0 12px 30px rgba(74, 144, 226, 0.4),
+                0 0 0 1px rgba(255, 255, 255, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                0 0 20px var(--accent-blue);
+        }
+
+        /* Enhanced input styling */
+        .input-shiny {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 14px 18px;
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+            box-shadow:
+                0 4px 20px rgba(0, 0, 0, 0.1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .input-shiny:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow:
+                0 0 0 3px rgba(74, 144, 226, 0.15),
+                0 8px 30px rgba(0, 0, 0, 0.15),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                0 0 15px var(--accent-blue);
+            background: rgba(255, 255, 255, 0.95);
+            transform: translateY(-2px);
+        }
+
+        .no-stroke { -webkit-text-stroke: transparent; }
+        .ls-002 { letter-spacing: 0.02em; }
+
+        .portal-link {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 16px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: var(--text-primary);
+            display: block;
+        }
+
+        .portal-link:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-light);
+            border-color: var(--theme-primary);
+        }
+
+        /* Improve feature icon contrast in dark mode */
+        @media (prefers-color-scheme: dark) {
+            .feature-icon { background-color: rgba(255,255,255,0.08) !important; }
+        }
+
+
+    </style>
+</head>
+    <body>
+    <canvas id="matrix-canvas"></canvas>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const OnboardingModal = ({ feature, isOpen, onClose }) => {
+            const instructions = {
+                "header-footer": [
+                    "Upload one or multiple Jupyter notebook (.ipynb) files",
+                    "Add custom headers and footers to appear on each page",
+                    "Enable page numbers and choose their format and placement",
+                    "For multiple files, you can set individual starting page numbers",
+                    "Use 'Auto Next File' to automatically continue page numbering",
+                    "Click Generate PDFs to create your lab manual"
+                ],
+                "pdf-extractor": [
+                    "Upload one or more PDF files containing highlighted text",
+                    "All highlights will be extracted and formatted",
+                    "Choose output format (PDF or Word)",
+                    "Download or preview your extracted notes"
+                ],
+                "social-downloader": [
+                    "Paste video URLs from supported platforms",
+                    "Click 'Add Another URL' for batch downloads",
+                    "Select your preferred quality for each video",
+                    "Download videos individually or in batch"
+                ],
+                "price-finder": [
+                    "Enter a product name to search for",
+                    "Optionally add your pincode for local results",
+                    "Click on any store to compare prices",
+                    "Open multiple stores to find the best deal"
+                ]
+            };
+
+            const getInstructions = () => {
+                return feature ? instructions[feature] : [
+                    "Welcome to Hephaestus! Here's how to get started:",
+                    "Choose from our selection of student-focused tools",
+                    "Each tool is designed to help with specific tasks",
+                    "Look for the help icon (?) in any tool for quick instructions",
+                    "Your preferences are saved automatically",
+                    "Send feedback or report issues via the email provided"
+                ];
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="glass-card max-w-lg w-full p-6 space-y-4">
+                        <h3 className="text-xl font-semibold mb-4">
+                            {feature ? `How to use ${instructions[feature] ? feature.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : feature}` : "Welcome to Hephaestus"}
+                        </h3>
+                        <ul className="list-disc pl-5 space-y-2">
+                            {getInstructions().map((instruction, index) => (
+                                <li key={index} className="text-sm text-gray-600 dark:text-gray-300">
+                                    {instruction}
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="flex justify-end gap-3 mt-6">
+                            {!feature && (
+                                <button
+                                    onClick={() => {
+                                        localStorage.setItem('hephaestus_onboarding_shown', 'true');
+                                        onClose();
+                                    }}
+                                    className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                    Don't show again
+                                </button>
+                            )}
+                            <button
+                                onClick={onClose}
+                                className="btn-primary"
+                            >
+                                Got it
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MatrixRain = () => {
+            const canvasRef = useRef(null);
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                const alphabet = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブヅプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッンABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                const fontSize = 16;
+                const columns = Math.floor(canvas.width / fontSize);
+                const rainDrops = Array(columns).fill(1);
+                let animationFrameId;
+                const draw = () => {
+                    ctx.fillStyle = 'rgba(10, 10, 10, 0.05)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#00FF41';
+                    ctx.font = fontSize + 'px monospace';
+                    for (let i = 0; i < rainDrops.length; i++) {
+                        const text = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+                        ctx.fillText(text, i * fontSize, rainDrops[i] * fontSize);
+                        if (rainDrops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                            rainDrops[i] = 0;
+                        }
+                        rainDrops[i]++;
+                    }
+                    animationFrameId = requestAnimationFrame(draw);
+                };
+                draw();
+                return () => cancelAnimationFrame(animationFrameId);
+            }, []);
+            return <canvas ref={canvasRef} id="matrix-canvas" />;
+        };
+
+        const HephaestusApp = () => {
+            const [currentView, setCurrentView] = useState('landing');
+            const [activeFeature, setActiveFeature] = useState(null);
+            const [userPrefs, setUserPrefs] = useState(() => {
+                const saved = localStorage.getItem('hephaestus_prefs');
+                return saved ? JSON.parse(saved) : {
+                    outputFormat: 'pdf',
+                    theme: 'light',
+                    batchMode: false
+                };
+            });
+
+            // Shared mapping from original filename -> { serverFilename, convertedPdf }
+            const [uploadedMap, setUploadedMap] = useState({});
+
+            const [showOnboarding, setShowOnboarding] = useState(() => {
+                return !localStorage.getItem('hephaestus_onboarding_shown');
+            });
+            const [showFeatureHelp, setShowFeatureHelp] = useState(false);
+
+            useEffect(() => {
+                localStorage.setItem('hephaestus_prefs', JSON.stringify(userPrefs));
+            }, [userPrefs]);
+
+            const features = [
+                {
+                    id: 'pdf-extractor',
+                    name: 'PDF Highlighted Text Extractor',
+                    description: 'Extract highlighted text from your PDFs and convert them into clean, formatted study notes',
+                    icon: 'fas fa-highlighter',
+                    theme: 'theme-pdf',
+                    color: '#ff6b35'
+                },
+                {
+                    id: 'header-footer',
+                    name: 'IPYNB/PDF Header Footer Editor',
+                    description: 'Convert Jupyter notebooks to professional PDFs with headers, footers, and page numbers - perfect for ML lab manuals',
+                    icon: 'fas fa-file-code',
+                    theme: 'theme-header',
+                    color: '#4a90e2'
+                },
+                {
+                    id: 'social-downloader',
+                    name: 'Social Media Video Downloader',
+                    description: 'Download videos from YouTube, Instagram, TikTok, X/Twitter, and more with multiple quality options',
+                    icon: 'fas fa-download',
+                    theme: 'theme-social',
+                    color: '#000000'
+                },
+                {
+                    id: 'price-finder',
+                    name: 'Smart Price Finder',
+                    description: 'Compare prices across multiple e-commerce platforms instantly',
+                    icon: 'fas fa-tags',
+                    theme: 'theme-price',
+                    color: '#50e3c2'
+                }
+            ];
+
+            const selectFeature = (featureId) => {
+                setActiveFeature(featureId);
+                setCurrentView('feature');
+                document.body.className = features.find(f => f.id === featureId)?.theme || '';
+            };
+
+            const backToLanding = () => {
+                setCurrentView('landing');
+                setActiveFeature(null);
+                document.body.className = '';
+            };
+
+            useEffect(() => {
+                gsap.from(".hero-title", { duration: 1, y: 50, opacity: 0, delay: 0.2, ease: "power3.out" });
+                gsap.from(".hero-subtitle", { duration: 1, y: 30, opacity: 0, delay: 0.5, ease: "power3.out" });
+                gsap.from(".feature-grid", { duration: 1, y: 30, opacity: 0, delay: 0.8, ease: "power3.out" });
+
+                // Set animation delays for feature cards
+                const cards = document.querySelectorAll('.feature-card');
+                cards.forEach((card, index) => {
+                    card.style.animationDelay = (index * 0.1) + 's';
+                });
+
+                // Set dynamic colors for feature icons
+                const featureIcons = document.querySelectorAll('.feature-icon[data-color]');
+                featureIcons.forEach(icon => {
+                    let color = (icon.getAttribute('data-color') || '').toLowerCase();
+                    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    if (color === '#000000') {
+                        if (isDark) {
+                            icon.style.backgroundColor = 'rgba(255,255,255,0.15)';
+                            icon.style.color = '#ffffff';
+                        } else {
+                            icon.style.backgroundColor = 'rgba(0,0,0,0.08)';
+                            icon.style.color = '#111827';
+                        }
+                    } else if (color) {
+                        icon.style.backgroundColor = color + '20';
+                        icon.style.color = color;
+                    }
+                });
+
+                // Set dynamic colors for portal icons
+                const portalIcons = document.querySelectorAll('.portal-icon[data-color]');
+                portalIcons.forEach(icon => {
+                    const color = icon.getAttribute('data-color');
+                    icon.style.backgroundColor = color + '20';
+                    icon.style.color = color;
+                });
+            }, [currentView]);
+
+            if (currentView === 'landing') {
+                return (
+                    <div className="min-h-screen app-bg flex flex-col items-center justify-center p-4 sm:p-6 md:p-8">
+                        <OnboardingModal
+                            isOpen={showOnboarding}
+                            onClose={() => setShowOnboarding(false)}
+                        />
+                        <header className="text-center my-12">
+                            <h1 className="text-5xl md:text-6xl font-bold tracking-tight mb-4 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent ls-002">
+                                Hephaestus
+                            </h1>
+                            <div className="inline-block glass-card px-4 py-2 mb-6">
+                                <span className="text-xs font-medium text-blue-600 tracking-wider">PUBLIC BETA</span>
+                            </div>
+                            <h2 className="hero-subtitle text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight leading-tight mb-4 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent no-stroke">
+                                Digital Tools for Students
+                            </h2>
+                            <p className="text-lg text-slate-600 mt-4 font-light">Where productivity meets procrastination</p>
+                        </header>
+
+                            <main className="w-full max-w-4xl">
+                                <div className="feature-grid grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+                                    {features.map((feature, index) => (
+                                        <div
+                                            key={feature.id}
+                                            className="feature-card p-6 fade-in cursor-pointer"
+                                            data-delay={index * 0.1}
+                                            onClick={() => selectFeature(feature.id)}
+                                        >
+                                            <div className="flex items-center mb-4">
+                                                <div
+                                                    className="w-12 h-12 rounded-full flex items-center justify-center mr-4 feature-icon"
+                                                    data-color={feature.color}
+                                                >
+                                                    <i className={feature.icon + ' text-xl'}></i>
+                                                </div>
+                                                <h3 className="text-xl font-bold font-plex tracking-wider text-accent-green">{feature.name}</h3>
+                                            </div>
+                                            <p className="text-text-secondary text-sm leading-relaxed mb-4">{feature.description}</p>
+                                            <div className="flex items-center text-accent-cyan">
+                                                <span className="text-xs font-fira">ACCESS_TOOL</span>
+                                                <i className="fas fa-arrow-right ml-2"></i>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                
+                            </main>
+
+                            <footer className="text-center mt-auto pt-12 text-slate-500 text-xs font-light">
+                                <p>{'\u003E'} System Online. All rights reserved. Hephaestus 2025</p>
+                            </footer>
+                        </div>
+                );
+            }
+
+            const activeFeatureData = features.find(f => f.id === activeFeature);
+            if (!activeFeatureData) return null;
+
+            return (
+                <div className={`min-h-screen p-6 feature-active feature-bg transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]`} style={{
+                    transform: currentView === 'feature' ? 'translateX(0)' : 'translateX(100vw)',
+                    filter: currentView === 'feature' ? 'blur(0px)' : 'blur(16px)',
+                    transition: 'transform 0.7s cubic-bezier(0.34,1.56,0.64,1), filter 0.7s cubic-bezier(0.34,1.56,0.64,1)'
+                }}>
+                    <div className="max-w-4xl mx-auto">
+                        <button
+                            onClick={backToLanding}
+                            className="mb-8 btn-primary inline-flex items-center"
+                        >
+                            <i className="fas fa-arrow-left mr-2"></i>
+                            Back to Tools
+                        </button>
+
+                        <div className="glass-card p-8 mb-8">
+                            <div className="flex items-center mb-6">
+                                <div
+                                    className="w-16 h-16 rounded-full flex items-center justify-center mr-6 feature-icon"
+                                    data-color={activeFeatureData.color}
+                                >
+                                    <i className={activeFeatureData.icon + ' text-2xl'}></i>
+                                </div>
+                                <div className="flex-1">
+                                    <h1 className="text-3xl font-bold card-title mb-2">{activeFeatureData.name}</h1>
+                                    <p className="card-subtitle text-lg">{activeFeatureData.description}</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowFeatureHelp(true)}
+                                    className="ml-4 px-4 py-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                                    title="Show Help"
+                                >
+                                    <i className="fas fa-question-circle text-xl"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="glass-card p-3 text-sm mb-4 flex justify-between items-center">
+                            <p className="flex-1 text-center">
+                                Provide your feedback at <a href="mailto:existencedreal@gmail.com" className="underline font-medium">existencedreal@gmail.com</a>. I'll fix your request as fast as ChatGPT can.
+                            </p>
+                            <button
+                                onClick={() => setShowFeatureHelp(true)}
+                                className="ml-4 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                                title="Show Help"
+                            >
+                                <i className="fas fa-question-circle"></i>
+                            </button>
+                        </div>
+
+                        <div className="feature-enter">
+
+                        <OnboardingModal
+                            feature={activeFeature}
+                            isOpen={showFeatureHelp}
+                            onClose={() => setShowFeatureHelp(false)}
+                        />
+                            {activeFeature === 'pdf-extractor' && <PDFExtractor userPrefs={userPrefs} setUserPrefs={setUserPrefs} uploadedMap={uploadedMap} setUploadedMap={setUploadedMap} />}
+                            {activeFeature === 'header-footer' && <HeaderFooterEditor userPrefs={userPrefs} setUserPrefs={setUserPrefs} uploadedMap={uploadedMap} setUploadedMap={setUploadedMap} />}
+                            {activeFeature === 'social-downloader' && <SocialDownloader userPrefs={userPrefs} setUserPrefs={setUserPrefs} />}
+                            {activeFeature === 'price-finder' && <PriceFinder userPrefs={userPrefs} setUserPrefs={setUserPrefs} />}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const PDFExtractor = ({ userPrefs, setUserPrefs, uploadedMap, setUploadedMap }) => {
+            const [files, setFiles] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [isDragging, setIsDragging] = useState(false);
+            const [progress, setProgress] = useState(0);
+            const [results, setResults] = useState([]);
+            // map previewUrl -> desired filename (without extension)
+            const [desiredFilenames, setDesiredFilenames] = useState({});
+            const [error, setError] = useState('');
+            const [outputFormat, setOutputFormat] = useState('pdf');
+            const previewRef = useRef(null);
+
+            // Track per-file upload and processing status
+            const [fileStatus, setFileStatus] = useState({}); // filename -> { state: 'uploading' | 'processing' | 'ready' | 'error', progress: number, error?: string }
+            const [uploadProgress, setUploadProgress] = useState({}); // filename -> number (0-100)
+
+            // Handle retrying a failed upload/process
+            const retryFile = async (filename) => {
+                const fileToRetry = files.find(f => f.name === filename);
+                if (!fileToRetry) return;
+                
+                setFileStatus(prev => ({
+                    ...prev,
+                    [filename]: { state: 'uploading', progress: 0 }
+                }));
+                
+                try {
+                    await handleFileUpload([fileToRetry]);
+                } catch (err) {
+                    setFileStatus(prev => ({
+                        ...prev,
+                        [filename]: { state: 'error', error: err.message }
+                    }));
+                }
+            };
+
+            // Handle file drag and drop
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                
+                const droppedFiles = Array.from(e.dataTransfer.files).filter(
+                    f => f.name.toLowerCase().endsWith('.pdf')
+                );
+                
+                if (droppedFiles.length > 0) {
+                    setFiles(droppedFiles);
+                    handleFileChange({ target: { files: droppedFiles }}); // Reuse existing upload handler
+                }
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setIsDragging(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+            };
+
+            const handleFileUpload = async (filesToUpload) => {
+                for (const file of filesToUpload) {
+                    // Set initial upload status
+                    setFileStatus(prev => ({
+                        ...prev,
+                        [file.name]: { state: 'uploading', progress: 0 }
+                    }));
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        // Use XMLHttpRequest for upload progress
+                        const response = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('POST', '/upload_and_analyze', true);
+
+                            xhr.upload.onprogress = (e) => {
+                                if (e.lengthComputable) {
+                                    const progress = Math.round((e.loaded * 100) / e.total);
+                                    setFileStatus(prev => ({
+                                        ...prev,
+                                        [file.name]: { state: 'uploading', progress }
+                                    }));
+                                }
+                            };
+
+                            xhr.onload = () => {
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    resolve(JSON.parse(xhr.responseText));
+                                } else {
+                                    reject(new Error(xhr.responseText));
+                                }
+                            };
+
+                            xhr.onerror = () => reject(new Error('Network error'));
+                            xhr.send(formData);
+                        });
+
+                        // Handle successful upload
+                        setUploadedMap(prev => ({ ...prev, [file.name]: response }));
+
+                        // If it's an IPYNB, start polling conversion status
+                        if (file.name.toLowerCase().endsWith('.ipynb')) {
+                            setFileStatus(prev => ({
+                                ...prev,
+                                [file.name]: { state: 'processing', progress: 0 }
+                            }));
+
+                            // Poll conversion status
+                            const pollStatus = async () => {
+                                try {
+                                    const status = await fetch(`/check_conversion_status/${encodeURIComponent(response.serverFilename)}`).then(r => r.json());
+                                    
+                                    if (status.status === 'done') {
+                                        setFileStatus(prev => ({
+                                            ...prev,
+                                            [file.name]: { state: 'ready', progress: 100 }
+                                        }));
+                                        return;
+                                    } else if (status.status === 'failed') {
+                                        setFileStatus(prev => ({
+                                            ...prev,
+                                            [file.name]: { state: 'error', error: 'Conversion failed' }
+                                        }));
+                                        return;
+                                    }
+                                    
+                                    // Update progress and continue polling
+                                    setFileStatus(prev => ({
+                                        ...prev,
+                                        [file.name]: { state: 'processing', progress: status.progress || 0 }
+                                    }));
+                                    
+                                    setTimeout(pollStatus, 1000);
+                                } catch (err) {
+                                    console.error('Error polling status:', err);
+                                }
+                            };
+                            pollStatus();
+                        } else {
+                            // For PDFs, mark as ready immediately
+                            setFileStatus(prev => ({
+                                ...prev,
+                                [file.name]: { state: 'ready', progress: 100 }
+                            }));
+                        }
+                    } catch (err) {
+                        setFileStatus(prev => ({
+                            ...prev,
+                            [file.name]: { state: 'error', error: err.message }
+                        }));
+                    }
+                }
+            };
+
+            const handleFileChange = async (e) => {
+                const selectedFiles = Array.from(e.target.files);
+                setFiles(selectedFiles);
+                setError('');
+                setResults([]);
+
+                await handleFileUpload(selectedFiles);
+            };
+
+            const processFiles = async () => {
+                if (files.length === 0) return;
+                setLoading(true);
+                setError('');
+
+                try {
+                    const newResults = [];
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        // Prefer the upload result from selection time to avoid re-conversion
+                        let uploadData = uploadedMap[file.name];
+                        if (!uploadData) {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            const uploadResponse = await fetch('/upload_and_analyze', { method: 'POST', body: formData });
+                            uploadData = await uploadResponse.json();
+                            if (!uploadResponse.ok) throw new Error(uploadData.error);
+                            setUploadedMap(prev => ({ ...prev, [file.name]: uploadData }));
+                        }
+                        // If this was an ipynb, poll conversion status and prefer the converted PDF when ready
+                        let serverFileToUse = uploadData.serverFilename;
+                        if (file.name.toLowerCase().endsWith('.ipynb')) {
+                            // poll up to 120s
+                            const start = Date.now();
+                            const timeout = 120000;
+                            while (Date.now() - start < timeout) {
+                                try {
+                                    const statusRes = await fetch(`/check_conversion_status/${encodeURIComponent(uploadData.serverFilename)}`);
+                                    const statusData = await statusRes.json();
+                                    if (statusData.status === 'done' && statusData.pdf_basename) {
+                                        serverFileToUse = statusData.pdf_basename;
+                                        break;
+                                    }
+                                    if (statusData.status === 'failed') break;
+                                } catch (err) {
+                                    // ignore and retry
+                                }
+                                // small delay
+                                await new Promise(r => setTimeout(r, 1500));
+                            }
+                        }
+
+                        const processFormData = new FormData();
+                        processFormData.append('serverFilename', serverFileToUse);
+                        processFormData.append('outputFormat', outputFormat);
+
+                        const processResponse = await fetch('/extract_highlights', { method: 'POST', body: processFormData });
+                        const processData = await processResponse.json();
+                        if (!processResponse.ok) throw new Error(processData.error);
+
+                        newResults.push({
+                            filename: file.name,
+                            previewUrl: processData.previewUrl,
+                            stats: processData.finalStats
+                        });
+                    }
+                    setResults(newResults);
+                    setTimeout(() => { if (previewRef.current) previewRef.current.scrollIntoView({ behavior: 'smooth' }); }, 50);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+
+                <div className="space-y-6">
+                    <div className="glass-card p-6">
+                        <h3 className="text-xl font-semibold mb-4">Upload PDFs</h3>
+
+                        {/* Supported file formats section */}
+                        <div className="mb-6 flex flex-col items-center">
+                            <div className="flex flex-wrap gap-3 justify-center">
+                                <span className="px-3 py-1 text-xs bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 rounded-full flex items-center gap-1">
+                                    <i className="fas fa-file-pdf mr-1"></i> PDF
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Supported file format: <span className="font-semibold">PDF (.pdf)</span></p>
+                        </div>
+
+                        <div
+                            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                                isDragging
+                                    ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                                    : 'border-gray-300 hover:border-orange-400'
+                            }`}
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                        >
+                            <input
+                                type="file"
+                                multiple={true}
+                                accept=".pdf"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                id="pdf-upload"
+                            />
+                            <label htmlFor="pdf-upload" className="cursor-pointer">
+                                <i className="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                                <p className="text-lg text-gray-600 mb-2">
+                                    {userPrefs.batchMode ? 'Drop multiple PDFs here' : 'Drop your PDF here'}
+                                </p>
+                                <p className="text-sm text-gray-500">or click to browse</p>
+                            </label>
+                        </div>
+
+                        {files.length > 0 && (
+                            <div className="mt-4">
+                                <p className="text-sm text-gray-600 mb-2">
+                                    {files.length} file{files.length > 1 ? 's' : ''} selected
+                                </p>
+                                <div className="space-y-2">
+                                    {files.map((file, index) => (
+                                            <div key={index} className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-medium">{file.name}</span>
+                                                        {fileStatus[file.name] && (
+                                                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                                                fileStatus[file.name].state === 'uploading' ? 'bg-blue-100 text-blue-700' :
+                                                                fileStatus[file.name].state === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                                                                fileStatus[file.name].state === 'ready' ? 'bg-green-100 text-green-700' :
+                                                                'bg-red-100 text-red-700'
+                                                            }`}>
+                                                                {fileStatus[file.name].state === 'uploading' ? 'Uploading...' :
+                                                                 fileStatus[file.name].state === 'processing' ? 'Processing...' :
+                                                                 fileStatus[file.name].state === 'ready' ? 'Ready' :
+                                                                 'Error'}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-xs text-gray-500 block">
+                                                        {(file.size / 1024 / 1024).toFixed(1)} MB
+                                                    </span>
+                                                    
+                                                    {/* Show progress bar for upload or processing */}
+                                                    {fileStatus[file.name] && (fileStatus[file.name].state === 'uploading' || fileStatus[file.name].state === 'processing') && (
+                                                        <div className="mt-2">
+                                                            <div className="progress-container">
+                                                                <div className="progress-bar" style={{
+                                                                    width: `${fileStatus[file.name].progress}%`,
+                                                                    backgroundColor: fileStatus[file.name].state === 'uploading' ? '#3B82F6' : '#F59E0B'
+                                                                }}></div>
+                                                                <div className="progress-text">{fileStatus[file.name].progress}%</div>
+                                                            </div>
+                                                            {fileStatus[file.name].state === 'processing' && (
+                                                                <p className="text-xs text-yellow-600 mt-1">You can continue configuring header/footer settings while this processes</p>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Show error with retry button */}
+                                                    {fileStatus[file.name] && fileStatus[file.name].state === 'error' && (
+                                                        <div className="mt-2">
+                                                            <p className="text-xs text-red-600">{fileStatus[file.name].error}</p>
+                                                            <button
+                                                                onClick={() => retryFile(file.name)}
+                                                                className="mt-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
+                                                            >
+                                                                Retry
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {files.length > 1 && formData.isPageNumEnabled && (
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-gray-500">Start page:</span>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={filePageNumbers[file.name] || 1}
+                                                            onChange={(e) => updateFilePageNumber(file.name, e.target.value)}
+                                                            className="w-16 text-xs input-modern text-center"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                </div>
+                                {files.length > 1 && formData.isPageNumEnabled && (
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <button
+                                            type="button"
+                                            className="px-3 py-1 rounded bg-blue-500 text-white text-xs shadow hover:bg-blue-600 transition"
+                                            onClick={() => {
+                                                const newNums = {};
+                                                files.forEach(f => { newNums[f.name] = 1; });
+                                                setFilePageNumbers(newNums);
+                                            }}
+                                        >
+                                            Select All: Start at 1
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="px-3 py-1 rounded bg-gray-200 text-gray-700 text-xs shadow hover:bg-gray-300 transition"
+                                            onClick={() => {
+                                                const newNums = {};
+                                                files.forEach(f => { newNums[f.name] = filePageCounts[f.name] || 1; });
+                                                setFilePageNumbers(newNums);
+                                            }}
+                                        >
+                                            Select All: Start at last page
+                                        </button>
+                                        <span className="text-xs text-gray-500 ml-2">Set individual starting page numbers for each file</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={processFiles}
+                            disabled={files.length === 0 || loading}
+                            className="btn-primary w-full mt-4 disabled:opacity-50"
+                        >
+                            {loading ? (
+                                <span>Processing<span className="loading-dots"></span></span>
+                            ) : (
+                                'Extract Highlights (' + files.length + ')'
+                            )}
+                        </button>
+                        {loading && (
+                            <div className="mt-3">
+                                <div className="progress-container">
+                                    <div className="progress-bar" style={{width: '75%'}}></div>
+                                    <div className="progress-text">75%</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {error && (
+                        <div className="glass-card p-4 border-red-200 bg-red-50">
+                            <p className="text-red-600">{error}</p>
+                        </div>
+                    )}
+
+                    {results.length > 0 && (
+                        <div className="space-y-4" ref={previewRef}>
+                            {results.map((result, index) => (
+                                <div key={index} className="glass-card p-6">
+                                    <h4 className="font-semibold mb-2">{result.filename}</h4>
+                                    <div className="grid grid-cols-3 gap-4 mb-4 text-center">
+                                        <div>
+                                            <p className="text-2xl font-bold text-orange-500">{result.stats.pages}</p>
+                                            <p className="text-xs text-gray-500">Pages</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-orange-500">{result.stats.words}</p>
+                                            <p className="text-xs text-gray-500">Words</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-2xl font-bold text-orange-500">{result.stats.characters}</p>
+                                            <p className="text-xs text-gray-500">Chars</p>
+                                        </div>
+                                    </div>
+
+                                    {/* PDF Preview */}
+                                    <div className="mb-4 border rounded-lg overflow-hidden bg-white">
+                                        <object
+                                            data={result.previewUrl}
+                                            type="application/pdf"
+                                            width="100%"
+                                            height="400px"
+                                            className="border-0"
+                                        >
+                                            <div className="p-8 text-center text-gray-500">
+                                                <i className="fas fa-file-pdf text-4xl mb-4"></i>
+                                                <p>PDF preview not available in this browser.</p>
+                                                <p className="text-sm mt-2">Click download to view the generated notes.</p>
+                                            </div>
+                                        </object>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-3 items-center">
+                                        <input
+                                            type="text"
+                                            className="input-modern flex-1"
+                                            placeholder="Filename (optional)"
+                                            value={desiredFilenames[result.previewUrl] || ''}
+                                            onChange={(e)=> setDesiredFilenames(prev => ({...prev, [result.previewUrl]: e.target.value}))}
+                                        />
+                                        <span className="text-sm text-gray-500">Download as:</span>
+                                        {
+                                            (() => {
+                                                const name = desiredFilenames[result.previewUrl] && desiredFilenames[result.previewUrl].trim();
+                                                const pdfParam = name ? `?filename=${encodeURIComponent(name)}.pdf` : '';
+                                                const docxParam = name ? `?filename=${encodeURIComponent(name)}.docx` : '';
+                                                return (
+                                                    <>
+                                                        <a href={result.previewUrl + pdfParam} download className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">PDF</a>
+                                                        <a href={result.previewUrl.replace(/\.pdf$/,'\.docx') + docxParam} download className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Word (.docx)</a>
+                                                    </>
+                                                );
+                                            })()
+                                        }
+                                        <a href={result.previewUrl} target="_blank" className="btn-primary">Open</a>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+    const HeaderFooterEditor = ({ userPrefs, setUserPrefs, uploadedMap, setUploadedMap }) => {
+            // Per-file header/footer editing toggle
+            const [perFileHFEnabled, setPerFileHFEnabled] = useState(false);
+            const [perFileHF, setPerFileHF] = useState({}); // filename -> {headerLeft, headerCenter, headerRight, footerLeft, footerCenter, footerRight}
+            // Per-space override toggles
+            const [overrideSpaces, setOverrideSpaces] = useState({
+                headerLeft: false,
+                headerCenter: false,
+                headerRight: false,
+                footerLeft: false,
+                footerCenter: false,
+                footerRight: false
+            });
+            const [files, setFiles] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [progress, setProgress] = useState(0);
+            const [results, setResults] = useState([]);
+            const previewRef = useRef(null);
+            // map previewUrl -> desired filename (without extension) for HeaderFooterEditor results
+            const [desiredFilenames, setDesiredFilenames] = useState({});
+            const [outputFormat, setOutputFormat] = useState('pdf');
+            const [isDragging, setIsDragging] = useState(false);
+            
+            // Track per-file status and metadata
+            const [fileStatus, setFileStatus] = useState({}); // filename -> { state: 'uploading' | 'processing' | 'ready' | 'error', progress: number, error?: string }
+            const [fileHeaders, setFileHeaders] = useState({}); // filename -> { hasExisting: boolean, headers: {...}, footers: {...} }
+            
+            // For retrying failed uploads/conversions
+            const retryFile = async (filename) => {
+                const fileToRetry = files.find(f => f.name === filename);
+                if (!fileToRetry) return;
+                
+                // Clear from uploadedMap to force fresh upload
+                setUploadedMap(prev => {
+                    const next = { ...prev };
+                    delete next[filename];
+                    return next;
+                });
+                
+                await handleFileUpload([fileToRetry]);
+            };
+
+            const [formData, setFormData] = useState({
+                headerLeft: '', headerCenter: '', headerRight: '',
+                footerLeft: '', footerCenter: '', footerRight: '',
+                startPageNum: 1, pageNumPlacement: 'footer-center',
+                pageNumFormat: 'numeric', overlapResolution: 'after',
+                chapterNum: '1', isPageNumEnabled: true, isHfEnabled: true
+            });
+            const [filePageNumbers, setFilePageNumbers] = useState({});
+            const [filePageCounts, setFilePageCounts] = useState({});
+            const [abortController, setAbortController] = useState(null);
+
+            const [processingFiles, setProcessingFiles] = useState({});
+
+            const checkConversionStatus = async (filename) => {
+                try {
+                    const response = await fetch(`/check_conversion_status/${filename}`);
+                    const status = await response.json();
+                    return status;
+                } catch (error) {
+                    console.error('Error checking conversion status:', error);
+                    return { status: 'failed' };
+                }
+            };
+
+            const handleFileUpload = async (filesToUpload) => {
+                const initialPageNumbers = {};
+                const initialPageCounts = {};
+                
+                for (const file of filesToUpload) {
+                    // Set initial state
+                    setFileStatus(prev => ({
+                        ...prev,
+                        [file.name]: { state: 'uploading', progress: 0 }
+                    }));
+
+                    initialPageNumbers[file.name] = 1;
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        // Use XMLHttpRequest for upload progress
+                        const response = await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('POST', '/upload_and_analyze', true);
+
+                            xhr.upload.onprogress = (e) => {
+                                if (e.lengthComputable) {
+                                    const progress = Math.round((e.loaded * 100) / e.total);
+                                    setFileStatus(prev => ({
+                                        ...prev,
+                                        [file.name]: { state: 'uploading', progress }
+                                    }));
+                                }
+                            };
+
+                            xhr.onload = () => {
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    resolve(JSON.parse(xhr.responseText));
+                                } else {
+                                    reject(new Error(xhr.responseText));
+                                }
+                            };
+
+                            xhr.onerror = () => reject(new Error('Upload failed'));
+                            xhr.send(formData);
+                        });
+
+                        // Update uploadedMap with server response
+                        setUploadedMap(prev => ({ ...prev, [file.name]: response }));
+
+                        if (file.name.toLowerCase().endsWith('.ipynb')) {
+                            setFilePageCounts(prev => ({
+                                ...prev,
+                                [file.name]: 0
+                            }));
+                            setFileStatus(prev => ({
+                                ...prev,
+                                [file.name]: { state: 'processing', progress: 0 }
+                            }));
+                            // Poll conversion status
+                            const pollStatus = async () => {
+                                try {
+                                    const status = await fetch(`/check_conversion_status/${encodeURIComponent(response.serverFilename)}`).then(r => r.json());
+                                    if (status.status === 'done') {
+                                        setFileStatus(prev => ({
+                                            ...prev,
+                                            [file.name]: { state: 'ready', progress: 100 }
+                                        }));
+                                        if (status.pdf_basename) {
+                                            setUploadedMap(prev => ({
+                                                ...prev,
+                                                [file.name]: { ...prev[file.name], convertedPdf: status.pdf_basename }
+                                            }));
+                                            // Fetch page count for converted PDF
+                                            try {
+                                                const countRes = await fetch(`/get_page_count?filename=${encodeURIComponent(status.pdf_basename)}`);
+                                                const countData = await countRes.json();
+                                                setFilePageCounts(prev => ({
+                                                    ...prev,
+                                                    [file.name]: countData.pageCount || 1
+                                                }));
+                                            } catch {}
+                                        }
+                                        return;
+                                    } else if (status.status === 'failed') {
+                                        setFileStatus(prev => ({
+                                            ...prev,
+                                            [file.name]: { state: 'error', error: 'Conversion failed' }
+                                        }));
+                                        return;
+                                    }
+                                    setFileStatus(prev => ({
+                                        ...prev,
+                                        [file.name]: { state: 'processing', progress: status.progress || 0 }
+                                    }));
+                                    setTimeout(pollStatus, 1000);
+                                } catch (err) {
+                                    console.error('Error polling status:', err);
+                                }
+                            };
+                            pollStatus();
+                        } else if (file.name.toLowerCase().endsWith('.pdf')) {
+                            setFileStatus(prev => ({
+                                ...prev,
+                                [file.name]: { state: 'ready', progress: 100 }
+                            }));
+                            // Fetch page count for PDF
+                            try {
+                                const countRes = await fetch(`/get_page_count?filename=${encodeURIComponent(response.serverFilename)}`);
+                                const countData = await countRes.json();
+                                setFilePageCounts(prev => ({
+                                    ...prev,
+                                    [file.name]: countData.pageCount || 1
+                                }));
+                            } catch {}
+                            try {
+                                setFileHeaders(prev => ({
+                                    ...prev,
+                                    [file.name]: { hasExisting: false }
+                                }));
+                            } catch (err) {
+                                console.error('Error checking headers:', err);
+                            }
+                        } else {
+                            // For other file types, set page count from response
+                            setFilePageCounts(prev => ({
+                                ...prev,
+                                [file.name]: response.pageCount || (response.initialStats && response.initialStats.pages) || 1
+                            }));
+                        }
+                    } catch (err) {
+                        setFileStatus(prev => ({
+                            ...prev,
+                            [file.name]: { state: 'error', error: err.message }
+                        }));
+                    }
+                }
+
+                setFilePageNumbers(initialPageNumbers);
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+                
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                setFiles(droppedFiles);
+                handleFileUpload(droppedFiles);
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDragging(false);
+            };
+
+            const handleFileChange = async (e) => {
+                const selectedFiles = Array.from(e.target.files);
+                setFiles(selectedFiles);
+                setResults([]);
+                await handleFileUpload(selectedFiles);
+            }
+
+            const processFiles = async () => {
+                if (files.length === 0) return;
+                // Check if any files are still processing
+                const isProcessing = Object.values(processingFiles).some(status => status && status.processing);
+                if (isProcessing) {
+                    alert('Please wait for all files to finish processing');
+                    return;
+                }
+                setLoading(true);
+                setProgress(0);
+                const controller = new AbortController();
+                setAbortController(controller);
+                try {
+                    const newResults = [];
+                    const totalFiles = files.length;
+                    for (let i = 0; i < files.length; i++) {
+                        if (controller.signal.aborted) break;
+                        const file = files[i];
+                        let uploadData = uploadedMap[file.name];
+                        let serverFileToUse2 = null;
+                        if (uploadData) {
+                            serverFileToUse2 = uploadData.convertedPdf ? uploadData.convertedPdf : uploadData.serverFilename;
+                        } else {
+                            const data = new FormData();
+                            data.append('file', file);
+                            setProgress(Math.round((i / totalFiles) * 30));
+                            const uploadResponse = await fetch('/upload_and_analyze', {
+                                method: 'POST',
+                                body: data,
+                                signal: controller.signal
+                            });
+                            const uploadResp = await uploadResponse.json();
+                            if (!uploadResponse.ok) throw new Error(uploadResp.error);
+                            uploadData = uploadResp;
+                            setUploadedMap(prev => ({ ...prev, [file.name]: uploadData }));
+                            serverFileToUse2 = uploadData.convertedPdf ? uploadData.convertedPdf : uploadData.serverFilename;
+                        }
+                        setProgress(Math.round(((i + 0.5) / totalFiles) * 70));
+                        // Always use per-file startPageNum for each file
+                        let fileSpecificFormData = { ...formData, startPageNum: filePageNumbers[file.name] || 1 };
+                        if (perFileHFEnabled) {
+                            // Use per-space override toggles
+                            ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].forEach(space => {
+                                if (overrideSpaces[space]) {
+                                    fileSpecificFormData[space] = perFileHF[file.name]?.[space] || '';
+                                } else {
+                                    fileSpecificFormData[space] = formData[space] || '';
+                                }
+                            });
+                        }
+                        const processData = new FormData();
+                        processData.append('serverFilename', serverFileToUse2);
+                        Object.keys(fileSpecificFormData).forEach(key => {
+                            if (key === 'serverFilename') return;
+                            processData.append(key, fileSpecificFormData[key]);
+                        });
+                        processData.append('outputFormat', outputFormat);
+                        const processResponse = await fetch('/add_header_footer', {
+                            method: 'POST',
+                            body: processData,
+                            signal: controller.signal
+                        });
+                        const processResData = await processResponse.json();
+                        if (!processResponse.ok) throw new Error(processResData.error);
+                        newResults.push({
+                            filename: file.name,
+                            previewUrl: processResData.previewUrl
+                        });
+                        setProgress(Math.round(((i + 1) / totalFiles) * 100));
+                    }
+                    if (!controller.signal.aborted) {
+                        setResults(newResults);
+                        setTimeout(() => { if (previewRef.current) previewRef.current.scrollIntoView({ behavior: 'smooth' }); }, 50);
+                    }
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error(err);
+                    }
+                } finally {
+                    setLoading(false);
+                    setAbortController(null);
+                }
+            };
+
+            const stopProcessing = () => {
+                if (abortController) {
+                    abortController.abort();
+                    setLoading(false);
+                    setProgress(0);
+                    setAbortController(null);
+                }
+            };
+
+            const updateFilePageNumber = (filename, pageNum) => {
+                setFilePageNumbers(prev => ({
+                    ...prev,
+                    [filename]: parseInt(pageNum) || 1
+                }));
+            };
+
+
+
+            return (
+                <div className="space-y-6">
+                    <div className="glass-card p-6">
+                        <h3 className="text-xl font-semibold mb-4">Upload File</h3>
+
+                            <div
+                            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                                isDragging
+                                    ? 'border-blue-400 bg-blue-50/50 dark:bg-blue-900/20'
+                                    : 'border-gray-300 hover:border-blue-400 dark:border-gray-600 dark:hover:border-blue-500'
+                            }`}
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragEnter={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                        >
+                            <input
+                                type="file"
+                                multiple={true}
+                                accept=".pdf,.ipynb"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                id="hf-upload"
+                            />
+                            <label htmlFor="hf-upload" className="cursor-pointer">
+                                <div className="flex flex-col items-center justify-center">
+                                    <i className="fas fa-file-upload text-4xl text-gray-400 dark:text-gray-500 mb-4"></i>
+                                    <p className="text-lg text-gray-600 dark:text-gray-300 mb-2">Drop files here or click to browse</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        {isDragging ? 'Drop to upload!' : 'Supports PDF and Jupyter Notebook files'}
+                                    </p>
+                                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                                        <span className="px-3 py-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full">
+                                            <i className="fas fa-file-pdf mr-1"></i> PDF
+                                        </span>
+                                        <span className="px-3 py-1 text-xs bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 rounded-full">
+                                            <i className="fab fa-python mr-1"></i> .ipynb
+                                        </span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>                        {files.length > 0 && (
+                            <div className="mt-4">
+                                <p className="text-sm text-gray-600 mb-2">
+                                    {files.length} file{files.length > 1 ? 's' : ''} selected
+                                </p>
+                                <div className="space-y-2">
+                                    {files.map((file, index) => (
+                                        <div key={index} className="flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                                            <div className="flex-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-sm font-medium">
+                                                        {file.type === 'application/x-ipynb+json' ? (
+                                                            <i className="fab fa-python mr-2 text-orange-500 dark:text-orange-400"></i>
+                                                        ) : (
+                                                            <i className="fas fa-file-pdf mr-2 text-blue-500 dark:text-blue-400"></i>
+                                                        )}
+                                                        {file.name}
+                                                    </span>
+                                                    {fileStatus[file.name] && (
+                                                        <span className={`text-xs px-3 py-1 rounded-full flex items-center gap-1 ${
+                                                            fileStatus[file.name].state === 'uploading' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                                                            fileStatus[file.name].state === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                                                            fileStatus[file.name].state === 'ready' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                                                        }`}>
+                                                            {fileStatus[file.name].state === 'uploading' ? (
+                                                                <><i className="fas fa-upload"></i> Uploading...</>
+                                                            ) : fileStatus[file.name].state === 'processing' ? (
+                                                                <><i className="fas fa-cog fa-spin"></i> Converting...</>
+                                                            ) : fileStatus[file.name].state === 'ready' ? (
+                                                                <><i className="fas fa-check"></i> Ready</>
+                                                            ) : (
+                                                                <><i className="fas fa-exclamation-circle"></i> Error</>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                    {fileHeaders[file.name]?.hasExisting && (
+                                                        <span className="text-xs px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                                                            <i className="fas fa-info-circle mr-1"></i>
+                                                            Has Headers
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                                    <span><i className="fas fa-hdd mr-1"></i>{(file.size / 1024 / 1024).toFixed(1)} MB</span>
+                                                    {filePageCounts[file.name] && (
+                                                        <span><i className="fas fa-file-alt mr-1"></i>{filePageCounts[file.name]} pages</span>
+                                                    )}
+                                                </div>
+                                                
+                                                {/* Show progress bar for upload/processing */}
+                                                {fileStatus[file.name] && (fileStatus[file.name].state === 'uploading' || fileStatus[file.name].state === 'processing') && (
+                                                    <div className="mt-3">
+                                                        <div className="progress-container h-2">
+                                                            <div 
+                                                                className="progress-bar" 
+                                                                style={{
+                                                                    width: `${fileStatus[file.name].progress}%`,
+                                                                    backgroundColor: fileStatus[file.name].state === 'uploading' ? 'var(--accent-blue)' : 'var(--accent-indigo)'
+                                                                }}
+                                                            ></div>
+                                                        </div>
+                                                        <div className="flex justify-between mt-1">
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {fileStatus[file.name].state === 'uploading' ? 'Uploading file...' : 'Converting to PDF...'}
+                                                            </span>
+                                                            <span className="text-xs font-medium">{fileStatus[file.name].progress}%</span>
+                                                        </div>
+                                                        {fileStatus[file.name].state === 'processing' && (
+                                                            <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                                                                <i className="fas fa-info-circle mr-1"></i>
+                                                                You can configure headers/footers while conversion finishes
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* Show error with retry button */}
+                                                {fileStatus[file.name]?.state === 'error' && (
+                                                    <div className="mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+                                                        <p className="text-xs text-red-600 dark:text-red-400">
+                                                            <i className="fas fa-exclamation-triangle mr-1"></i>
+                                                            {fileStatus[file.name].error}
+                                                        </p>
+                                                        <button
+                                                            onClick={() => retryFile(file.name)}
+                                                            className="mt-2 px-3 py-1 text-xs bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded hover:bg-red-200 dark:hover:bg-red-800 transition-colors flex items-center gap-1"
+                                                        >
+                                                            <i className="fas fa-redo"></i>
+                                                            Retry Upload
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+
+                    <div className="glass-card p-6">
+                        <h3 className="text-xl font-semibold mb-4">Header & Footer Settings</h3>
+                        {files.length > 1 && (
+                            <div className="mb-4 flex flex-col gap-2">
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="checkbox"
+                                        checked={perFileHFEnabled}
+                                        onChange={e => setPerFileHFEnabled(e.target.checked)}
+                                        id="per-file-hf-toggle"
+                                    />
+                                    <label htmlFor="per-file-hf-toggle" className="text-sm">Edit header/footer fields individually for each file</label>
+                                </div>
+                                {perFileHFEnabled && (
+                                    <div className="flex flex-wrap gap-3 mt-2 items-center">
+                                        <button
+                                            type="button"
+                                            className="px-3 py-1 rounded bg-blue-500 text-white text-xs shadow hover:bg-blue-600 transition"
+                                            onClick={() => setOverrideSpaces(Object.fromEntries(Object.keys(overrideSpaces).map(k => [k, true])))}
+                                        >
+                                            Select All Overrides
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="px-3 py-1 rounded bg-gray-200 text-gray-700 text-xs shadow hover:bg-gray-300 transition ml-2"
+                                            onClick={() => setOverrideSpaces(Object.fromEntries(Object.keys(overrideSpaces).map(k => [k, false])))}
+                                        >
+                                            Deselect All
+                                        </button>
+                                        <div className="w-full grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                                            {Object.keys(overrideSpaces).map(space => (
+                                                <label key={space} className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded shadow px-2 py-1 border border-gray-200 dark:border-gray-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={overrideSpaces[space]}
+                                                        onChange={e => setOverrideSpaces(prev => ({ ...prev, [space]: e.target.checked }))}
+                                                        className="accent-blue-500 scale-110"
+                                                    />
+                                                    <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Override {space.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Common fields */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <input
+                                type="text"
+                                placeholder="Header Left (common)"
+                                value={formData.headerLeft}
+                                onChange={(e) => setFormData({...formData, headerLeft: e.target.value})}
+                                className="input-modern"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Header Center (common)"
+                                value={formData.headerCenter}
+                                onChange={(e) => setFormData({...formData, headerCenter: e.target.value})}
+                                className="input-modern"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Header Right (common)"
+                                value={formData.headerRight}
+                                onChange={(e) => setFormData({...formData, headerRight: e.target.value})}
+                                className="input-modern"
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <input
+                                type="text"
+                                placeholder="Footer Left (common)"
+                                value={formData.footerLeft}
+                                onChange={(e) => setFormData({...formData, footerLeft: e.target.value})}
+                                className="input-modern"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Footer Center (common)"
+                                value={formData.footerCenter}
+                                onChange={(e) => setFormData({...formData, footerCenter: e.target.value})}
+                                className="input-modern"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Footer Right (common)"
+                                value={formData.footerRight}
+                                onChange={(e) => setFormData({...formData, footerRight: e.target.value})}
+                                className="input-modern"
+                            />
+                        </div>
+
+                        {/* Per-file overrides for selected spaces */}
+                        {perFileHFEnabled && (
+                            <div className="space-y-6">
+                                {files.map((file, idx) => (
+                                    <div key={file.name} className="glass-card p-4 mb-2">
+                                        <div className="font-semibold mb-2 text-blue-700 dark:text-blue-300">{file.name}</div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                                            {['headerLeft', 'headerCenter', 'headerRight'].map(space => (
+                                                overrideSpaces[space] ? (
+                                                    <input
+                                                        key={space}
+                                                        type="text"
+                                                        placeholder={`Header ${space.replace('header','')}`}
+                                                        value={perFileHF[file.name]?.[space] || ''}
+                                                        onChange={e => setPerFileHF(prev => ({ ...prev, [file.name]: { ...prev[file.name], [space]: e.target.value } }))}
+                                                        className="input-modern"
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        key={space}
+                                                        type="text"
+                                                        placeholder={`Header ${space.replace('header','')}`}
+                                                        value={formData[space]}
+                                                        disabled
+                                                        className="input-modern opacity-60"
+                                                    />
+                                                )
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                                            {['footerLeft', 'footerCenter', 'footerRight'].map(space => (
+                                                overrideSpaces[space] ? (
+                                                    <input
+                                                        key={space}
+                                                        type="text"
+                                                        placeholder={`Footer ${space.replace('footer','')}`}
+                                                        value={perFileHF[file.name]?.[space] || ''}
+                                                        onChange={e => setPerFileHF(prev => ({ ...prev, [file.name]: { ...prev[file.name], [space]: e.target.value } }))}
+                                                        className="input-modern"
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        key={space}
+                                                        type="text"
+                                                        placeholder={`Footer ${space.replace('footer','')}`}
+                                                        value={formData[space]}
+                                                        disabled
+                                                        className="input-modern opacity-60"
+                                                    />
+                                                )
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-between mb-4">
+                            <label className="flex items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.isPageNumEnabled}
+                                    onChange={(e) => setFormData({...formData, isPageNumEnabled: e.target.checked})}
+                                    className="mr-2"
+                                />
+                                <span>Enable Page Numbers</span>
+                            </label>
+                        </div>
+
+                        {formData.isPageNumEnabled && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                <select
+                                    value={formData.pageNumFormat}
+                                    onChange={(e) => setFormData({...formData, pageNumFormat: e.target.value})}
+                                    className="input-modern"
+                                >
+                                    <option value="numeric">1, 2, 3...</option>
+                                    <option value="roman_lower">i, ii, iii...</option>
+                                    <option value="roman_upper">I, II, III...</option>
+                                    <option value="alpha_lower">a, b, c...</option>
+                                    <option value="alpha_upper">A, B, C...</option>
+                                </select>
+                                <input
+                                    type="number"
+                                    placeholder="Default Start Page (can be overridden per file)"
+                                    value={formData.startPageNum}
+                                    onChange={(e) => setFormData({...formData, startPageNum: parseInt(e.target.value)})}
+                                    className={`input-modern ${files.length > 1 ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800' : ''}`}
+                                    disabled={files.length > 1}
+                                />
+                                <p className="text-xs text-gray-500 md:col-span-2">Page number format and default starting number. {files.length > 1 && 'Disabled when multiple files are uploaded - use individual file settings below.'}</p>
+                                <select
+                                    value={formData.pageNumPlacement}
+                                    onChange={(e) => setFormData({...formData, pageNumPlacement: e.target.value})}
+                                    className="input-modern"
+                                >
+                                    <option value="header-left">Header Left</option>
+                                    <option value="header-center">Header Center</option>
+                                    <option value="header-right">Header Right</option>
+                                    <option value="footer-left">Footer Left</option>
+                                    <option value="footer-center">Footer Center</option>
+                                    <option value="footer-right">Footer Right</option>
+                                </select>
+                                <select
+                                    value={formData.overlapResolution}
+                                    onChange={(e) => setFormData({...formData, overlapResolution: e.target.value})}
+                                    className={`input-modern ${
+                                        (() => {
+                                            const hasConflict = (
+                                                (formData.pageNumPlacement === 'header-left' && formData.headerLeft) ||
+                                                (formData.pageNumPlacement === 'header-center' && formData.headerCenter) ||
+                                                (formData.pageNumPlacement === 'header-right' && formData.headerRight) ||
+                                                (formData.pageNumPlacement === 'footer-left' && formData.footerLeft) ||
+                                                (formData.pageNumPlacement === 'footer-center' && formData.footerCenter) ||
+                                                (formData.pageNumPlacement === 'footer-right' && formData.footerRight)
+                                            );
+                                            return hasConflict ? '' : 'opacity-50 cursor-not-allowed';
+                                        })()
+                                    }`}
+                                    disabled={
+                                        (() => {
+                                            return !(
+                                                (formData.pageNumPlacement === 'header-left' && formData.headerLeft) ||
+                                                (formData.pageNumPlacement === 'header-center' && formData.headerCenter) ||
+                                                (formData.pageNumPlacement === 'header-right' && formData.headerRight) ||
+                                                (formData.pageNumPlacement === 'footer-left' && formData.footerLeft) ||
+                                                (formData.pageNumPlacement === 'footer-center' && formData.footerCenter) ||
+                                                (formData.pageNumPlacement === 'footer-right' && formData.footerRight)
+                                            );
+                                        })()
+                                    }
+                                >
+                                    <option value="after">Append after existing text</option>
+                                    <option value="before">Prepend before existing text</option>
+                                </select>
+                                <p className="text-xs text-gray-500 md:col-span-2">Position on page. Overlap rule appears if the chosen slot already has text.</p>
+                            </div>
+                        )}
+
+                        {files.length > 1 && formData.isPageNumEnabled && (
+                            <div className="glass-card p-6 mt-6">
+                                <h3 className="text-xl font-semibold mb-4">Individual File Page Numbers</h3>
+                                <div className="space-y-4">
+                                    {files.map((file, index) => {
+                                        const currentStartPage = filePageNumbers[file.name] || 1;
+                                        const isProcessing = processingFiles[file.name] && processingFiles[file.name].processing;
+                                        // Calculate the highest end page across all files so suggestions use detected counts
+                                        let maxEndPage = 0;
+                                        files.forEach(f => {
+                                            const startPage = filePageNumbers[f.name] || 1;
+                                            const pageCount = filePageCounts[f.name] || 1;
+                                            const endPage = startPage + pageCount - 1;
+                                            if (endPage > maxEndPage) maxEndPage = endPage;
+                                        });
+                                        const suggestedNextPage = maxEndPage > 0 ? (maxEndPage + 1) : (currentStartPage || 1);
+
+                                        return (
+                                            <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                                                <div className="flex-1">
+                                                    <div className="font-medium text-sm">
+                                                        {file.name}
+                                                        {isProcessing && (
+                                                            <span className="ml-2 text-xs text-orange-500">({processingFiles[file.name].progress || 0}% converting)</span>
+                                                        )}
+                                                        {isProcessing && 
+                                                            <span className="ml-2 text-xs bg-yellow-500 text-white px-2 py-1 rounded">
+                                                                Processing...
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {(file.size / 1024 / 1024).toFixed(1)} MB
+                                                        {filePageCounts[file.name] && (
+                                                            <span className="ml-2">{filePageCounts[file.name]} pages</span>
+                                                        )}
+                                                        {filePageCounts[file.name] && (
+                                                            <span className="ml-2">• end page: { (filePageNumbers[file.name] || 1) + (filePageCounts[file.name] || 1) - 1 }</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <button
+                                                        onClick={() => updateFilePageNumber(file.name, suggestedNextPage)}
+                                                        className="px-3 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-blue-800"
+                                                        title={`Auto-fill with ${suggestedNextPage} — computed from detected end page(s). If detection is incorrect, edit start page manually.`}
+                                                    >
+                                                        Auto Next File
+                                                    </button>
+                                                    <div className="text-right">
+                                                        <div className="text-xs text-gray-500 mb-1">Start Page</div>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={currentStartPage}
+                                                            onChange={(e) => updateFilePageNumber(file.name, Math.max(1, parseInt(e.target.value) || 1))}
+                                                            className="w-20 text-sm input-modern text-center"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <p className="text-xs text-gray-500 mt-3">
+                                    Set individual starting page numbers for each file. "Auto Next File" computes a suggested start using detected page counts (shown as "N pages" and "end page"); if detection is wrong, edit start page manually.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="relative">
+                            <button
+                                onClick={loading ? stopProcessing : processFiles}
+                                disabled={files.length === 0}
+                                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-300 ${
+                                    loading
+                                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                                        : 'btn-primary'
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                                <div className="flex items-center justify-center gap-3">
+                                    {loading ? (
+                                        <>
+                                            <i className="fas fa-stop"></i>
+                                            <span>Stop Processing ({progress}%)</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-file-pdf"></i>
+                                            <span>Generate PDFs ({files.length})</span>
+                                        </>
+                                    )}
+                                </div>
+                            </button>
+                            {loading && (
+                                <div className="mt-3">
+                                    <div className="progress-container">
+                                        <div
+                                            className="progress-bar"
+                                            style={{width: `${progress}%`}}
+                                        ></div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {results.length > 0 && (
+                        <div className="space-y-4" ref={previewRef}>
+                            {results.map((result, index) => (
+                                <div key={index} className="glass-card p-6">
+                                    <h4 className="font-semibold mb-2">{result.filename}</h4>
+                                    <div className="border rounded-lg overflow-hidden">
+                                        <object
+                                            data={result.previewUrl}
+                                            type="application/pdf"
+                                            width="100%"
+                                            height="500px"
+                                        >
+                                            <p className="text-center p-4">
+                                                Your browser does not support PDF previews.
+                                                <a href={result.previewUrl} className="text-blue-500 underline ml-2">Download PDF</a>
+                                            </p>
+                                        </object>
+                                    </div>
+                                    <div className="flex flex-wrap gap-3 items-center">
+                                        <input
+                                            type="text"
+                                            className="input-modern flex-1"
+                                            placeholder="Filename (optional)"
+                                            value={desiredFilenames[result.previewUrl] || ''}
+                                            onChange={(e) => setDesiredFilenames(prev => ({...prev, [result.previewUrl]: e.target.value}))}
+                                        />
+                                        <span className="text-sm text-gray-500">Download as:</span>
+                                        {
+                                            (() => {
+                                                const name = desiredFilenames[result.previewUrl] && desiredFilenames[result.previewUrl].trim();
+                                                const pdfParam = name ? `?filename=${encodeURIComponent(name)}.pdf` : '';
+                                                const docxParam = name ? `?filename=${encodeURIComponent(name)}.docx` : '';
+                                                return (
+                                                    <>
+                                                        <a href={result.previewUrl + pdfParam} download className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">PDF</a>
+                                                        <a href={result.previewUrl.replace(/\.pdf$/,'\.docx') + docxParam} download className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Word (.docx)</a>
+                                                    </>
+                                                );
+                                            })()
+                                        }
+                                        <a href={result.previewUrl} target="_blank" className="btn-primary">Open</a>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const SocialDownloader = ({ userPrefs, setUserPrefs }) => {
+            const [urls, setUrls] = useState(['']);
+            const [loading, setLoading] = useState(false);
+            const [results, setResults] = useState([]);
+            const [error, setError] = useState('');
+            const [merging, setMerging] = useState({});
+
+            const addUrl = () => setUrls([...urls, '']);
+            const removeUrl = (index) => {
+                if (urls.length > 1) {
+                    setUrls(urls.filter((_, i) => i !== index));
+                }
+            };
+
+            const updateUrl = (index, value) => {
+                const newUrls = [...urls];
+                newUrls[index] = value;
+                setUrls(newUrls);
+            };
+
+            const processUrls = async () => {
+                const validUrls = urls.filter(url => url.trim());
+                if (validUrls.length === 0) return;
+
+                setLoading(true);
+                setError('');
+                setResults([]);
+
+                try {
+                    const newResults = [];
+                    for (const url of validUrls) {
+                        try {
+                            const response = await fetch('/video_download', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url })
+                            });
+                            const data = await response.json();
+                            if (!response.ok) {
+                                newResults.push({ url, error: data.error || 'Failed to fetch' });
+                                continue;
+                            }
+
+                            // If yt-dlp returned no playable media (common for X/Twitter when blocked), treat as an error
+                            if (!data.media || !Array.isArray(data.media) || data.media.length === 0) {
+                                newResults.push({ url, error: data.error || 'No playable media found for this URL (platform restrictions may apply).' });
+                                continue;
+                            }
+
+                            newResults.push({
+                                url,
+                                media: data.media,
+                                bestAudio: data.bestAudio,
+                                suggestedFilename: data.suggestedFilename,
+                                selected: data.media && data.media.length ? data.media[0] : null,
+                                title: data.title,
+                                uploader: data.uploader,
+                                duration: data.duration
+                            });
+                        } catch (err) {
+                            newResults.push({ url, error: err.message });
+                        }
+                    }
+                    setResults(newResults);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const downloadSelected = async (result) => {
+                if (!result.selected) return;
+                const item = result.selected;
+                const filename = encodeURIComponent(result.suggestedFilename);
+                if (item.progressive) {
+                    window.location.href = '/proxy_download?url=' + encodeURIComponent(item.url) + '&filename=' + filename;
+                } else if (item.video_only && result.bestAudio) {
+                    const v = encodeURIComponent(item.url);
+                    const a = encodeURIComponent(result.bestAudio.url);
+                    window.location.href = '/proxy_merge_download?video=' + v + '&audio=' + a + '&filename=' + filename;
+                }
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="glass-card p-6">
+                        <h3 className="text-xl font-semibold mb-4">Video URLs</h3>
+                        <div className="space-y-3">
+                            {urls.map((url, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="url"
+                                        placeholder="https://youtube.com/watch?v=..."
+                                        value={url}
+                                        onChange={(e) => updateUrl(index, e.target.value)}
+                                        className="input-modern flex-1"
+                                    />
+                                    {urls.length > 1 && (
+                                        <button
+                                            onClick={() => removeUrl(index)}
+                                            className="px-3 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 dark:bg-red-900 dark:text-red-300 dark:hover:bg-red-800"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={addUrl}
+                            className="mt-3 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                        >
+                            <i className="fas fa-plus mr-2"></i>Add Another URL
+                        </button>
+
+                        <button
+                            onClick={processUrls}
+                            disabled={urls.filter(u => u.trim()).length === 0 || loading}
+                            className="btn-primary w-full mt-4 disabled:opacity-50"
+                        >
+                            {loading ? 'Fetching Videos...' : 'Fetch Videos (' + urls.filter(u => u.trim()).length + ')'}
+                        </button>
+                    </div>
+
+                    {error && (
+                        <div className="glass-card p-4 border-red-200 bg-red-50">
+                            <p className="text-red-600">{error}</p>
+                        </div>
+                    )}
+
+                    {results.length > 0 && (
+                        <div className="space-y-4">
+                            {results.map((result, index) => (
+                                <div key={index} className="glass-card p-6">
+                                    <h4 className="font-semibold mb-2 text-sm text-gray-600 truncate">{result.url}</h4>
+                                    {result.error ? (
+                                        <div className="p-4 bg-red-50 text-red-600 rounded">
+                                            Error: {result.error}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="mb-4">
+                                                {(result.selected && result.selected.url) ? (
+                                                    <video
+                                                        src={result.selected.url}
+                                                        controls
+                                                        className="w-full rounded-lg max-h-75"
+                                                        onError={e => {
+                                                            e.target.style.display = 'none';
+                                                            const fallback = document.createElement('div');
+                                                            fallback.className = 'p-4 bg-yellow-50 text-yellow-700 rounded';
+                                                            fallback.innerText = 'Could not preview this video. Platform restrictions or format issues may apply.';
+                                                            e.target.parentNode.appendChild(fallback);
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <div className="p-4 bg-yellow-50 text-yellow-700 rounded">
+                                                        No playable preview available for this URL.<br/>
+                                                        <span className="text-xs">If this is an X/Twitter video, it may be restricted or require download to view.</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="mb-4">
+                                                <label className="block text-sm font-medium mb-2">Quality Options:</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(result.media || []).map((item, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => {
+                                                                const newResults = [...results];
+                                                                newResults[index].selected = item;
+                                                                setResults(newResults);
+                                                            }}
+                                                            className={`px-3 py-1 rounded-full text-sm ${
+                                                                result.selected?.url === item.url
+                                                                    ? 'bg-black text-white dark:bg-white dark:text-black'
+                                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                                                            }`}
+                                                        >
+                                                            {item.quality}{item.size ? ` • ${item.size} MB` : ''}{item.video_only ? ' (video-only)' : ''}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                onClick={() => downloadSelected(result)}
+                                                className="btn-primary"
+                                                disabled={!result.selected}
+                                            >
+                                                Download Selected
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const PriceFinder = ({ userPrefs, setUserPrefs }) => {
+            const [productName, setProductName] = useState('');
+            const [pincode, setPincode] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [loading, setLoading] = useState(false);
+
+            const searchPrices = () => {
+                if (!productName) return;
+                setLoading(true);
+
+                const encodedProduct = encodeURIComponent(productName);
+                const sites = [
+                    { name: 'Amazon', url: 'https://www.amazon.in/s?k=' + encodedProduct.replace(/%20/g, '+'), icon: 'fab fa-amazon', color: '#FF9900' },
+                    { name: 'Flipkart', url: 'https://www.flipkart.com/search?q=' + encodedProduct, icon: 'fa fa-shopping-bag', color: '#2874F0' },
+                    { name: 'Google Shopping', url: 'https://www.google.com/search?tbm=shop&q=' + encodedProduct.replace(/%20/g, '+'), icon: 'fab fa-google', color: '#4285F4' },
+                    { name: 'BigBasket', url: 'https://www.bigbasket.com/ps/?q=' + encodedProduct, icon: 'fa fa-shopping-basket', color: '#84C225' },
+                    { name: 'DMart', url: 'https://www.dmart.in/search?searchTerm=' + encodedProduct, icon: 'fa fa-store', color: '#E23744' },
+                    { name: 'Blinkit', url: 'https://blinkit.com/s?q=' + encodedProduct, icon: 'fa fa-bolt', color: '#7C3AED' },
+                    { name: 'Instamart', url: 'https://www.swiggy.com/instamart/search?query=' + encodedProduct.replace(/%20/g, '+'), icon: 'fa fa-leaf', color: '#CB202D' },
+                    { name: 'Zepto', url: 'https://www.zeptonow.com/search?query=' + encodedProduct.replace(/%20/g, '+'), icon: 'fa fa-shipping-fast', color: '#7C3AED' },
+                ];
+
+                setTimeout(() => {
+                    setSearchResults(sites);
+                    setLoading(false);
+                }, 1000);
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="glass-card p-6">
+                        <h3 className="text-xl font-semibold mb-4">Find the Best Prices</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="md:col-span-2">
+                                <input
+                                    type="text"
+                                    placeholder="e.g., Nothing Phone 2a"
+                                    value={productName}
+                                    onChange={(e) => setProductName(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && searchPrices()}
+                                    className="input-modern w-full"
+                                />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Pincode (optional)"
+                                value={pincode}
+                                onChange={(e) => setPincode(e.target.value)}
+                                className="input-modern"
+                            />
+                        </div>
+
+                        <button
+                            onClick={searchPrices}
+                            disabled={!productName || loading}
+                            className="btn-primary w-full disabled:opacity-50"
+                        >
+                            {loading ? 'Searching...' : 'Find Prices'}
+                        </button>
+                    </div>
+
+                    {searchResults.length > 0 && (
+                        <div className="glass-card p-6">
+                            <h3 className="text-xl font-semibold mb-4">Price Comparison Portals</h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                {searchResults.map((site, index) => (
+                                    <a
+                                        key={index}
+                                        href={site.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="portal-link text-center hover:scale-105 transition-transform"
+                                    >
+                                        <div
+                                            className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 portal-icon"
+                                            data-color={site.color}
+                                        >
+                                            <i className={site.icon + ' text-xl'}></i>
+                                        </div>
+                                        <p className="font-medium">{site.name}</p>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<HephaestusApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
