@@ -7,8 +7,9 @@ import re
 import subprocess
 import html
 import uuid
-from werkzeug.utils import secure_filename
+import time
 import threading
+from werkzeug.utils import secure_filename
 
 # ReportLab Imports
 from reportlab.platypus import BaseDocTemplate, Paragraph, Spacer, Frame, PageTemplate, Preformatted, Image
@@ -37,6 +38,44 @@ app = Flask(__name__)
 temp_dir = tempfile.mkdtemp()
 app.config['UPLOAD_FOLDER'] = temp_dir
 app.config['SECRET_KEY'] = 'luminar-secret-key-2025'
+
+# File tracking for cleanup
+file_timestamps = {}  # filename -> last_access_time
+CLEANUP_INTERVAL = 180  # 3 minutes in seconds
+
+def track_file_access(filename):
+    """Track when a file was last accessed."""
+    if filename:
+        file_timestamps[filename] = time.time()
+
+def cleanup_aged_files():
+    """Remove files that haven't been accessed in CLEANUP_INTERVAL seconds."""
+    current_time = time.time()
+    files_to_remove = []
+    
+    for filename, last_access in list(file_timestamps.items()):
+        if current_time - last_access > CLEANUP_INTERVAL:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    print(f"\033[32m✓\033[0m Cleaned up aged file: {filename}")
+                files_to_remove.append(filename)
+            except Exception as e:
+                print(f"\033[33m⚠️\033[0m Could not remove aged file {filename}: {e}")
+    
+    for filename in files_to_remove:
+        del file_timestamps[filename]
+
+# Setup cleanup task
+def cleanup_task():
+    """Run cleanup periodically"""
+    while True:
+        cleanup_aged_files()
+        time.sleep(60)  # Check every minute
+
+cleanup_thread = threading.Thread(target=cleanup_task, daemon=True)
+cleanup_thread.start()
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 plt.switch_backend('agg')
 csrf = CSRFProtect(app)
@@ -46,6 +85,34 @@ dark_bg = colors.HexColor("#0A0A0A")
 white_text = colors.HexColor("#FFFFFF")
 green_accent = colors.HexColor("#00FF41")
 cyan_accent = colors.HexColor("#00D4FF")
+
+# File tracking for cleanup
+file_timestamps = {}  # filename -> last_access_time
+CLEANUP_INTERVAL = 180  # 3 minutes in seconds
+
+def track_file_access(filename):
+    """Track when a file was last accessed."""
+    if filename:
+        file_timestamps[filename] = time.time()
+
+def cleanup_aged_files():
+    """Remove files that haven't been accessed in CLEANUP_INTERVAL seconds."""
+    current_time = time.time()
+    files_to_remove = []
+    
+    for filename, last_access in list(file_timestamps.items()):
+        if current_time - last_access > CLEANUP_INTERVAL:
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                    print(f"\033[32m✓\033[0m Cleaned up aged file: {filename}")
+                files_to_remove.append(filename)
+            except Exception as e:
+                print(f"\033[33m⚠️\033[0m Could not remove aged file {filename}: {e}")
+    
+    for filename in files_to_remove:
+        del file_timestamps[filename]
 
 def to_roman(n):
     if not isinstance(n, int) or n <= 0: return str(n)
@@ -99,6 +166,9 @@ def check_conversion_status(filename):
                     status = dict(v)
                     # expose the original server key too for convenience
                     status['serverFilename'] = k
+                    # Track access to both original and converted files
+                    track_file_access(k)
+                    track_file_access(filename)
                     break
             except Exception:
                 continue
@@ -150,7 +220,11 @@ def _convert_ipynb_to_pdf_async(src_path, timeout=120):
         if rc == 0 and os.path.exists(pdf_output_path):
             conversion_status[server_key] = {'status': 'done', 'pdf_path': pdf_output_path, 'progress': 100}
             try:
-                conversion_status[server_key]['pdf_basename'] = os.path.basename(pdf_output_path)
+                pdf_basename = os.path.basename(pdf_output_path)
+                conversion_status[server_key]['pdf_basename'] = pdf_basename
+                # Track both original and converted files
+                track_file_access(server_key)
+                track_file_access(pdf_basename)
             except Exception:
                 pass
             print(f"Background conversion completed: {pdf_output_path}")
@@ -555,6 +629,10 @@ def home():
 def serve_temp_file(filename):
     force_download = request.args.get('download') is not None or request.args.get('filename') is not None
     download_name = request.args.get('filename')
+    
+    # Track file access
+    track_file_access(filename)
+    
     try:
         return send_from_directory(temp_dir, filename, as_attachment=force_download, download_name=download_name)
     except TypeError:
@@ -568,26 +646,58 @@ def download_youtube():
             url = request.form.get('url')
             if not url:
                 return jsonify({'error': 'No URL provided'}), 400
-                
-            # Initialize downloader with API key if available
             from smart_youtube_downloader import SmartYouTubeDownloader
             api_key = os.getenv('YOUTUBE_API_KEY')
             downloader = SmartYouTubeDownloader(api_key=api_key)
-            
-            # For initial request, just get preview info
             preview_info = downloader.get_preview_info(url)
-            preview_info['download_id'] = str(uuid.uuid4())  # Add unique ID for tracking download
+            preview_info['download_id'] = str(uuid.uuid4())
             return jsonify(preview_info)
-            
         elif request.method == 'GET':
-            # Handle actual download request
             url = request.args.get('url')
             download_id = request.args.get('download_id')
             if not url or not download_id:
                 return jsonify({'error': 'Missing parameters'}), 400
-            # NOTE: Actual streaming/download implementation goes here.
-            # For now return a not-implemented response to close the try block safely.
-            return jsonify({'error': 'Download-on-demand not implemented yet'}), 501
+            # Download logic
+            from smart_youtube_downloader import SmartYouTubeDownloader
+            api_key = os.getenv('YOUTUBE_API_KEY')
+            downloader = SmartYouTubeDownloader(api_key=api_key)
+            output_dir = app.config['UPLOAD_FOLDER']
+            try:
+                info = downloader.download_video(url, output_path=output_dir)
+                file_path = info.get('file_path')
+                if not file_path or not os.path.exists(file_path):
+                    return jsonify({'missingOutput': True, 'error': 'Output file missing. Please re-upload and try again.'}), 404
+                track_file_access(os.path.basename(file_path))
+                return send_from_directory(output_dir, os.path.basename(file_path), as_attachment=True)
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        return jsonify({'error': f'Failed to process download request: {str(e)}'}), 500
+@csrf.exempt
+@app.route('/download_twitter', methods=['POST', 'GET'])
+def download_twitter():
+    try:
+        if request.method == 'POST':
+            url = request.form.get('url')
+            if not url:
+                return jsonify({'error': 'No URL provided'}), 400
+            # For preview, just return the URL and a dummy download_id
+            preview_info = {'title': 'Twitter/X Video', 'download_id': str(uuid.uuid4()), 'url': url}
+            return jsonify(preview_info)
+        elif request.method == 'GET':
+            url = request.args.get('url')
+            download_id = request.args.get('download_id')
+            if not url or not download_id:
+                return jsonify({'error': 'Missing parameters'}), 400
+            # Download logic for X/Twitter (dummy implementation, replace with real logic)
+            # Simulate output file
+            output_dir = app.config['UPLOAD_FOLDER']
+            dummy_file = os.path.join(output_dir, f"{download_id}_twitter.mp4")
+            if not os.path.exists(dummy_file):
+                # Simulate missing output
+                return jsonify({'missingOutput': True, 'error': 'Output file missing. Please re-upload and try again.'}), 404
+            track_file_access(os.path.basename(dummy_file))
+            return send_from_directory(output_dir, os.path.basename(dummy_file), as_attachment=True)
     except Exception as e:
         return jsonify({'error': f'Failed to process download request: {str(e)}'}), 500
 
@@ -618,9 +728,12 @@ def upload_and_analyze():
     if not os.path.exists(server_path):
         with open(server_path, 'wb') as outf:
             outf.write(file_bytes)
+            
+        # Track this new file for cleanup
+        track_file_access(filename)
     else:
-        # already present; do nothing (avoid creating duplicate files)
-        pass
+        # File exists - update its access time
+        track_file_access(filename)
 
     # If PDF, return page stats right away
     if filename.lower().endswith('.pdf'):
@@ -653,7 +766,11 @@ def get_page_count():
             # Try basename in temp dir
             path = os.path.join(app.config['UPLOAD_FOLDER'], os.path.basename(filename))
         if not os.path.exists(path):
-            return jsonify({'pageCount': 0}), 404
+              return jsonify({'pageCount': 0, 'error': 'File not found. It may have been cleaned up due to inactivity. Please re-upload your file.'}), 404
+            
+        # Track file access when stats are requested
+        track_file_access(os.path.basename(path))
+        
         stats = get_doc_stats(path)
         return jsonify({'pageCount': stats.get('pages', 0)})
     except Exception as e:
@@ -819,10 +936,18 @@ def extract_highlights_route():
     server_filename = request.form.get('serverFilename')
     if not server_filename: return jsonify({'error': 'No server file reference provided'}), 400
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], server_filename)
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found. It may have been cleaned up due to inactivity. Please re-upload your file.'}), 404
+    # Track access to source file
+    track_file_access(server_filename)
+    
     # Prefer converted PDF when available
     pdf_path = get_pdf_for_serverfile(server_filename, filepath)
-    if not pdf_path:
-        return jsonify({'error': 'Could not obtain a PDF version of the uploaded file for highlight extraction.'}), 400
+    if not pdf_path or not os.path.exists(pdf_path):
+        return jsonify({'error': 'Could not obtain a PDF version of the uploaded file for highlight extraction. It may have been cleaned up due to inactivity. Please re-upload your file.'}), 404
+    # Track access to PDF version if different from source
+    if os.path.basename(pdf_path) != server_filename:
+        track_file_access(os.path.basename(pdf_path))
     try:
         highlights = extract_highlights(pdf_path)
         if not highlights:
@@ -832,6 +957,9 @@ def extract_highlights_route():
         pdf_filename = os.path.basename(pdf_path).replace('.pdf', '_notes.pdf')
         pdf_path_out = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
         create_modern_pdf(highlights, pdf_path_out)
+        
+        # Track the newly created notes PDF
+        track_file_access(pdf_filename)
 
         final_stats = get_doc_stats(pdf_path_out)
 
@@ -851,8 +979,11 @@ def add_header_footer_route():
     if not server_filename: return jsonify({'error': 'No server file reference provided'}), 400
     input_filepath = os.path.join(app.config['UPLOAD_FOLDER'], server_filename)
     intermediate_pdf_path = get_pdf_for_serverfile(server_filename, input_filepath)
-    if not intermediate_pdf_path:
-        return jsonify({'error': 'Could not obtain a PDF version of the uploaded file. Try again later or upload a PDF directly.'}), 400
+    if not intermediate_pdf_path or not os.path.exists(intermediate_pdf_path):
+        return jsonify({'error': 'The file you uploaded was cleaned up due to inactivity. Please re-upload your file and try again.'}), 400
+    
+    # Check if this is a converted IPYNB file
+    is_converted_ipynb = server_filename.lower().endswith('.ipynb')
     
     headers = {'left': form_data.get('headerLeft', ''), 'center': form_data.get('headerCenter', ''), 'right': form_data.get('headerRight', '')}
     footers = {'left': form_data.get('footerLeft', ''), 'center': form_data.get('footerCenter', ''), 'right': form_data.get('footerRight', '')}
@@ -863,8 +994,15 @@ def add_header_footer_route():
     chapter_num = form_data.get('chapterNum', '1')
     page_num_enabled = form_data.get('isPageNumEnabled') == 'true'
     hf_enabled = form_data.get('isHfEnabled') == 'true'
-    try: start_page_num = int(form_data.get('startPageNum', 1))
-    except (ValueError, TypeError): start_page_num = 1
+    # Always use the user-provided start page number, fall back to 1 if invalid
+    try:
+        raw_start_page = form_data.get('startPageNum')
+        if raw_start_page and raw_start_page.strip():
+            start_page_num = int(raw_start_page)
+        else:
+            start_page_num = 1
+    except (ValueError, TypeError):
+        start_page_num = 1
     
     output_filename = f"{uuid.uuid4()}_final.pdf"
     output_filepath = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
@@ -872,6 +1010,15 @@ def add_header_footer_route():
     try:
         add_header_footer_to_pdf(intermediate_pdf_path, output_filepath, headers, footers, start_page_num, page_num_placement, page_num_format, overlap_resolution, margin_size, chapter_num, page_num_enabled, hf_enabled)
         final_stats = get_doc_stats(output_filepath)
+
+        # Clean up converted IPYNB PDF after successful output generation
+        if is_converted_ipynb and intermediate_pdf_path != output_filepath:
+            try:
+                os.remove(intermediate_pdf_path)
+                print(f"\033[32m✓\033[0m Cleaned up intermediate PDF: {os.path.basename(intermediate_pdf_path)}")
+            except Exception as e:
+                print(f"\033[33m⚠️\033[0m Could not remove intermediate PDF {os.path.basename(intermediate_pdf_path)}: {e}")
+        
         # Also provide DOCX version
         docx_name = output_filename.replace('.pdf', '.docx')
         docx_path = os.path.join(app.config['UPLOAD_FOLDER'], docx_name)

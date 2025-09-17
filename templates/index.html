@@ -15,6 +15,23 @@
     <!-- These files contain JSX; ensure Babel transpiles them in-browser -->
     <script type="text/babel" src="{{ url_for('static', filename='js/YouTubePreview.js') }}"></script>
     <script type="text/babel" src="{{ url_for('static', filename='js/VideoDownloader.js') }}"></script>
+    <script>
+    // Robust back navigation: always redirect to main page from feature pages
+    function isFeaturePage() {
+        // Add logic to detect feature page, e.g. by URL or DOM
+        return window.location.pathname !== '/' && window.location.pathname !== '/index.html';
+    }
+    window.addEventListener('popstate', function(e) {
+        if (isFeaturePage()) {
+            window.location.href = '/';
+        }
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        if (isFeaturePage()) {
+            history.pushState({}, '', window.location.pathname);
+        }
+    });
+    </script>
     <link href="{{ url_for('static', filename='css/transitions.css') }}" rel="stylesheet">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -520,10 +537,23 @@
     <canvas id="matrix-canvas"></canvas>
     <div id="root"></div>
 
+    <script>
+    // Robust back navigation: always redirect to main page
+    window.addEventListener('popstate', function(e) {
+        window.location.href = '/';
+    });
+    </script>
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
         const OnboardingModal = ({ feature, isOpen, onClose }) => {
+// Global error display for missing output files
+function showMissingFileError(message) {
+    const root = document.getElementById('root');
+    if (root) {
+        root.innerHTML = `<div class='p-8 text-center text-red-600 bg-red-50 rounded-lg'>${message}</div>`;
+    }
+}
             const instructions = {
                 "header-footer": [
                     "Upload one or multiple Jupyter notebook (.ipynb) files",
@@ -1618,8 +1648,11 @@
                             serverFileToUse2 = uploadData.convertedPdf ? uploadData.convertedPdf : uploadData.serverFilename;
                         }
                         setProgress(Math.round(((i + 0.5) / totalFiles) * 70));
-                        // Always use per-file startPageNum for each file
-                        let fileSpecificFormData = { ...formData, startPageNum: filePageNumbers[file.name] || 1 };
+                        // For multiple files, use Individual File Page Numbers if set, otherwise use Header & Footer Settings
+                        let fileSpecificFormData = { ...formData };
+                        if (files.length > 1) {
+                            fileSpecificFormData.startPageNum = filePageNumbers[file.name] || formData.startPageNum || 1;
+                        }
                         if (perFileHFEnabled) {
                             // Use per-space override toggles
                             ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight'].forEach(space => {
@@ -1637,6 +1670,8 @@
                             processData.append(key, fileSpecificFormData[key]);
                         });
                         processData.append('outputFormat', outputFormat);
+                        // For multiple files use Individual File Page Numbers, for single file use Header & Footer Settings
+                        processData.append('startPageNum', files.length > 1 ? (filePageNumbers[file.name] || formData.startPageNum || 1) : (formData.startPageNum || 1));
                         const processResponse = await fetch('/add_header_footer', {
                             method: 'POST',
                             body: processData,
@@ -1742,22 +1777,43 @@
                                                         {file.name}
                                                     </span>
                                                     {fileStatus[file.name] && (
-                                                        <span className={`text-xs px-3 py-1 rounded-full flex items-center gap-1 ${
-                                                            fileStatus[file.name].state === 'uploading' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                                                            fileStatus[file.name].state === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                                                            fileStatus[file.name].state === 'ready' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                                                            'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                                                        }`}>
-                                                            {fileStatus[file.name].state === 'uploading' ? (
-                                                                <><i className="fas fa-upload"></i> Uploading...</>
-                                                            ) : fileStatus[file.name].state === 'processing' ? (
-                                                                <><i className="fas fa-cog fa-spin"></i> Converting...</>
-                                                            ) : fileStatus[file.name].state === 'ready' ? (
-                                                                <><i className="fas fa-check"></i> Ready</>
-                                                            ) : (
-                                                                <><i className="fas fa-exclamation-circle"></i> Error</>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`text-xs px-3 py-1 rounded-full flex items-center gap-1 ${
+                                                                fileStatus[file.name].state === 'uploading' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                                                                fileStatus[file.name].state === 'processing' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                                                                fileStatus[file.name].state === 'ready' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                                                                'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                                                            }`}>
+                                                                {fileStatus[file.name].state === 'uploading' ? (
+                                                                    <><i className="fas fa-upload"></i> Uploading...</>
+                                                                ) : fileStatus[file.name].state === 'processing' ? (
+                                                                    <><i className="fas fa-cog fa-spin"></i> Converting...</>
+                                                                ) : fileStatus[file.name].state === 'ready' ? (
+                                                                    <><i className="fas fa-check"></i> Ready</>
+                                                                ) : (
+                                                                    <><i className="fas fa-exclamation-circle"></i> Error</>
+                                                                )}
+                                                            </span>
+                                                            {(fileStatus[file.name].state === 'uploading' || fileStatus[file.name].state === 'processing') && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        if (abortController) {
+                                                                            abortController.abort();
+                                                                            setFileStatus(prev => ({
+                                                                                ...prev,
+                                                                                [file.name]: { state: 'ready', progress: 0 }
+                                                                            }));
+                                                                        }
+                                                                    }}
+                                                                    className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors flex items-center gap-1"
+                                                                >
+                                                                    <i className="fas fa-stop"></i>
+                                                                    Stop
+                                                                </button>
                                                             )}
-                                                        </span>
+                                                        </div>
                                                     )}
                                                     {fileHeaders[file.name]?.hasExisting && (
                                                         <span className="text-xs px-3 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">

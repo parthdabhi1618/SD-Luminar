@@ -3,11 +3,37 @@ import re
 from collections import defaultdict
 from typing import Dict, List, Tuple, Any
 
+def clean_text(text: str) -> str:
+    """Clean text by removing invisible characters and normalizing whitespace."""
+    # Remove zero-width characters and other invisible unicode
+    text = re.sub(r'[\u200B-\u200D\uFEFF]', '', text)
+    # Replace various unicode whitespace with regular space
+    text = re.sub(r'[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]', ' ', text)
+    # Normalize line endings
+    text = re.sub(r'[\r\n]+', '\n', text)
+    # Remove multiple spaces
+    text = re.sub(r' +', ' ', text)
+    return text.strip()
+
 class DocumentAnalyzer:
     def __init__(self, doc: fitz.Document):
         self.doc = doc
+        # Check if document needs OCR
+        self.needs_ocr = self._check_needs_ocr()
         self.font_stats = self._analyze_fonts()
         self.structure = self._analyze_structure()
+    
+    def _check_needs_ocr(self) -> bool:
+        """Check if document might need OCR by sampling first few pages."""
+        sample_size = min(3, len(self.doc))
+        for i in range(sample_size):
+            page = self.doc[i]
+            # Try different text extraction methods
+            text_dict = page.get_text("dict")
+            text_raw = page.get_text("text")
+            if not text_dict["blocks"] and not text_raw.strip():
+                return True
+        return False
         
     def _analyze_fonts(self) -> Dict[str, Dict[str, Any]]:
         """Analyze font usage throughout the document."""
@@ -164,34 +190,85 @@ class HighlightExtractor:
         
         return style_info
 
-    def extract_highlights(self) -> List[Tuple[str, str]]:
-        """Extract and categorize highlights from the document."""
+    def extract_highlights(self) -> List[Dict]:
+        """Extract and categorize highlights from the document with improved text extraction."""
         highlights = []
+        
+        # If document needs OCR, warn about potential issues
+        if self.needs_ocr:
+            print("Warning: Document may be scanned/binary. Text extraction might be limited.")
         
         for page_num, page in enumerate(self.doc):
             for annot in page.annots():
                 if annot.type[1] == "Highlight":
                     rect = annot.rect
-                    # Add small margin to avoid false positives
+                    # Expand rectangle slightly to catch partially highlighted words
                     margin = 2
-                    clip_rect = fitz.Rect(rect.x0 + margin, rect.y0 + margin,
-                                        rect.x1 - margin, rect.y1 - margin)
+                    clip_rect = fitz.Rect(rect.x0 - margin, rect.y0 - margin,
+                                        rect.x1 + margin, rect.y1 + margin)
                     
-                    words = page.get_text("words", clip=clip_rect)
+                    # Try multiple text extraction methods
+                    words = None
+                    extraction_methods = [
+                        ("rawdict", lambda p, r: p.get_textpage().extractDICT(r)),
+                        ("words", lambda p, r: p.get_text("words", clip=r)),
+                        ("text", lambda p, r: p.get_text("text", clip=r)),
+                        ("blocks", lambda p, r: p.get_text("dict", clip=r)),
+                        ("html", lambda p, r: p.get_text("html", clip=r))
+                    ]
+                    
+                    for method_name, extractor in extraction_methods:
+                        try:
+                            raw_result = extractor(page, clip_rect)
+                            
+                            if method_name == "rawdict":
+                                text = " ".join(b.get("text", "") for b in raw_result.get("blocks", []))
+                                if text.strip():
+                                    words = [(0, 0, 0, 0, clean_text(word), 0, 0, 0) for word in text.split()]
+                            
+                            elif method_name == "words":
+                                if raw_result:
+                                    words = [(w[0], w[1], w[2], w[3], clean_text(w[4]), w[5], w[6], w[7]) 
+                                           for w in raw_result if clean_text(w[4])]
+                            
+                            elif method_name == "text":
+                                text = clean_text(raw_result)
+                                if text:
+                                    words = [(0, 0, 0, 0, word, 0, 0, 0) for word in text.split()]
+                            
+                            elif method_name == "blocks":
+                                text = ""
+                                for block in raw_result.get("blocks", []):
+                                    if "lines" in block:
+                                        for line in block["lines"]:
+                                            for span in line["spans"]:
+                                                text += clean_text(span["text"]) + " "
+                                if text.strip():
+                                    words = [(0, 0, 0, 0, word, 0, 0, 0) for word in text.split()]
+                            if words:
+                                break
+                        except Exception as e:
+                            print(f"Error with {method_name} extraction: {e}")
+                            continue
+                    
                     if not words:
+                        print(f"Warning: Could not extract text from highlight on page {page_num + 1}")
                         continue
                     
-                    # Sort words and group into lines
+                    # Sort words and group into lines with improved tolerance
                     words_sorted = sorted(words, key=lambda w: (round(w[3], 1), w[0]))
                     lines = defaultdict(list)
                     last_y = None
-                    y_tolerance = 3
+                    y_tolerance = 5  # Increased tolerance for better line grouping
                     
                     for word in words_sorted:
-                        y_pos = round(word[3], 1)
+                        # Handle both tuple and dict formats from different extraction methods
+                        text = word[4] if isinstance(word, tuple) else word.get('text', '')
+                        y_pos = round(word[3] if isinstance(word, tuple) else word.get('bbox', [0,0,0,0])[3], 1)
+                        
                         if last_y is None or abs(y_pos - last_y) > y_tolerance:
                             last_y = y_pos
-                        lines[last_y].append(word[4])
+                        lines[last_y].append(text)
                     
                     # Process each line
                     for y_pos in sorted(lines.keys()):
@@ -203,10 +280,18 @@ class HighlightExtractor:
                         style_info = self._analyze_highlight_style(page, rect)
                         context = self._get_context(page, rect)
                         
-                        # Categorize the highlight
-                        category = self._categorize_highlight(text, style_info, context)
-                        highlights.append((category, text))
+                        # Categorize the highlight and include all metadata
+                        highlight_data = {
+                            'text': text,
+                            'page': page_num + 1,
+                            'type': self._categorize_highlight(text, style_info, context),
+                            'style': style_info,
+                            'context': context
+                        }
+                        highlights.append(highlight_data)
         
+        # Sort highlights by page number and position
+        highlights.sort(key=lambda h: (h['page'], h['text'].lower()))
         return highlights
 
     def _categorize_highlight(self, text: str, style_info: Dict[str, Any], 

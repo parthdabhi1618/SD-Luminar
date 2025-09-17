@@ -15,17 +15,27 @@ const VideoDownloader = () => {
             const formData = new FormData();
             formData.append('url', url);
 
-            const response = await fetch('/download_youtube', {
+            // Try YouTube, then X/Twitter, fallback to error
+            let response = await fetch('/download_youtube', {
                 method: 'POST',
                 body: formData
             });
-
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to fetch video information');
+                // Try X/Twitter endpoint if YouTube fails
+                response = await fetch('/download_twitter', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to fetch video information');
+                }
             }
-
             const data = await response.json();
+            if (data.missingOutput) {
+                showMissingFileError('The output file is missing or was cleaned up. Please re-upload and try again.');
+                return;
+            }
             setVideoInfo({ ...data, url });
         } catch (err) {
             setError(err.message);
